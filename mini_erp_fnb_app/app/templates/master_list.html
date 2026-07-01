@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Master Data</p>
+        <h1>{{ config.title }}</h1>
+        <p class="page-desc">{{ config.subtitle }}</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-secondary" href="/masters">← Back</a>
+        <a class="btn" href="/masters/{{ entity }}/new">+ New</a>
+    </div>
+</section>
+
+<div class="master-tabs">
+    {% for ent, cfg in entities.items() %}
+        <a class="master-tab {{ 'active' if ent == entity else '' }}" href="/masters/{{ ent }}">{{ cfg.icon }} {{ cfg.title }}</a>
+    {% endfor %}
+</div>
+
+{% include "partials/master_selection_screen.html" %}
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ config.title }} List</h2>
+            <div class="card-subtitle">Hiển thị tối đa 300 dòng. Bấm trực tiếp vào mã master data để mở màn hình maintain.</div>
+        </div>
+        <span class="badge">{{ rows|length }} records</span>
+    </div>
+    <div class="table-wrap">
+        <table data-erp-table="true" data-erp-table-title="{{ config.title }} List" data-use-advanced-filter="true">
+            <thead>
+                <tr>
+                    {% for col, label, dtype in config.list_columns %}
+                        <th class="{{ 'num' if dtype in ['money','qty'] else '' }}">{{ label }}</th>
+                    {% endfor %}
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    {% for col, label, dtype in config.list_columns %}
+                        {% set val = row[col] %}
+                        <td class="{{ 'num' if dtype in ['money','qty'] else '' }}">
+                            {% if col == config.code_field %}
+                                {% if val is not none and val != '' %}
+                                    <strong>
+                                        <a class="erp-doc-link erp-master-link"
+                                           href="/masters/{{ entity }}/{{ row[config.pk] }}"
+                                           title="View {{ config.title }} {{ val }}">
+                                            {{ val }}
+                                        </a>
+                                    </strong>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            {% elif dtype == 'money' %}
+                                {{ val|vnd }}
+                            {% elif dtype == 'qty' %}
+                                {{ val|qty }}
+                            {% elif dtype == 'badge' %}
+                                <span class="badge">{{ val if val is not none else '-' }}</span>
+                            {% elif dtype == 'bool' %}
+                                {% if val %}<span class="badge badge-active">Yes</span>{% else %}<span class="badge badge-draft">No</span>{% endif %}
+                            {% elif dtype == 'active' %}
+                                {% if val %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-inactive">Inactive</span>{% endif %}
+                            {% else %}
+                                {{ val if val is not none and val != '' else '-' }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                    <td class="action-cell">
+                        <div class="row-actions">
+                            <a class="btn btn-small btn-secondary" href="/masters/{{ entity }}/{{ row[config.pk] }}/edit">Edit</a>
+                            <a class="btn btn-small btn-secondary" href="/masters/{{ entity }}/{{ row[config.pk] }}/copy">Copy</a>
+                            <form method="post" action="/masters/{{ entity }}/{{ row[config.pk] }}/toggle" onsubmit="return window.erpConfirmSubmit(this, 'Bạn muốn đổi trạng thái Active/Inactive của dòng này?', {title:'Confirm status change', confirmText:'Confirm', cancelText:'Cancel'});">
+                                <button class="btn btn-small {{ 'btn-danger' if row.is_active else 'btn-secondary' }}" type="submit">{{ 'Deactivate' if row.is_active else 'Activate' }}</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="{{ config.list_columns|length + 1 }}" class="empty-state">Chưa có dữ liệu. Bấm New để tạo mới.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function () {
+    const input = document.getElementById('master-search-input');
+    const box = document.getElementById('master-search-suggestions');
+    if (!input || !box) return;
+
+    let timer = null;
+    let lastQuery = '';
+
+    function hideBox() {
+        box.hidden = true;
+        box.innerHTML = '';
+    }
+
+    function renderSuggestions(items) {
+        if (!items || items.length === 0) {
+            hideBox();
+            return;
+        }
+        box.innerHTML = items.map(item => `
+            <button type="button" class="suggestion-item" data-value="${String(item.value).replace(/"/g, '&quot;')}">
+                ${item.label}
+            </button>
+        `).join('');
+        box.hidden = false;
+    }
+
+    input.addEventListener('input', function () {
+        const q = input.value.trim();
+        if (timer) window.clearTimeout(timer);
+        if (q.length < 1) {
+            hideBox();
+            return;
+        }
+        timer = window.setTimeout(async function () {
+            if (q === lastQuery) return;
+            lastQuery = q;
+            try {
+                const res = await fetch(`/masters/${input.dataset.entity}/suggestions?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                renderSuggestions(data.items || []);
+            } catch (e) {
+                hideBox();
+            }
+        }, 220);
+    });
+
+    box.addEventListener('click', function (e) {
+        const btn = e.target.closest('.suggestion-item');
+        if (!btn) return;
+        input.value = btn.dataset.value;
+        hideBox();
+        input.form.submit();
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!box.contains(e.target) && e.target !== input) hideBox();
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Purchasing</p>
+        <h1>Mua hàng</h1>
+        <p class="page-desc">Quy trình mua hàng mới: PR → PO → Goods Receipt → FIFO Inventory → Accounting. Bấm trực tiếp vào số chứng từ để mở màn hình xử lý.</p>
+        <div class="workflow-strip"><span class="step-pill">PR</span><span class="step-arrow">→</span><span class="step-pill">Release PR</span><span class="step-arrow">→</span><span class="step-pill">PO</span><span class="step-arrow">→</span><span class="step-pill">Release PO</span><span class="step-arrow">→</span><span class="step-pill">Goods Receipt</span><span class="step-arrow">→</span><span class="step-pill">FIFO + JE</span></div>
+    </div>
+</section>
+
+<div class="grid-cards">
+    <a class="module-card" href="/purchase/pr"><div class="module-icon">📝</div><h3>Manage Purchase Requisitions</h3><p>Tạo PR, tham khảo lịch sử giá Vendor và release trước khi tạo PO.</p><span class="badge badge-draft">Draft: {{ stats.draft_pr or 0 }}</span><span class="badge badge-released">Released: {{ stats.released_pr or 0 }}</span><span class="badge badge-po_created">PO Created: {{ stats.po_created_pr or 0 }}</span></a>
+    <a class="module-card" href="/purchase/po"><div class="module-icon">📄</div><h3>Manage Purchase Orders</h3><p>Tạo PO từ PR đã release hoặc tạo PO manual.</p><span class="badge badge-draft">Draft: {{ stats.draft_po or 0 }}</span><span class="badge badge-released">Released: {{ stats.released_po or 0 }}</span></a>
+    <a class="module-card" href="/purchase/receipts"><div class="module-icon">📦</div><h3>Post Goods Receipt</h3><p>Nhập kho từ PO released hoặc nhập kho manual, tự tạo FIFO layer.</p><span class="badge badge-posted">Posted: {{ stats.gr_count or 0 }}</span></a>
+    <a class="module-card" href="/inventory"><div class="module-icon">🧮</div><h3>FIFO Stock Card</h3><p>Theo dõi giá trị tồn kho theo lớp nhập trước xuất trước.</p><span class="badge badge-info">FIFO</span></a>
+</div>
+
+<div class="two-col-grid">
+    <div class="card">
+        <div class="card-header"><div><h2>Recent PR</h2><div class="card-subtitle">Các phiếu đề nghị mua hàng gần nhất.</div></div><a class="btn-secondary" href="/purchase/pr">View all</a></div>
+        <div class="table-wrap"><table><thead><tr><th>PR No</th><th>Date</th><th>Vendor</th><th>Status</th><th>Amount</th></tr></thead><tbody>
+        {% for r in recent_pr %}<tr><td><strong><a class="erp-doc-link" href="/purchase/pr/{{ r.id }}" title="View PR {{ r.pr_no }}">{{ r.pr_no }}</a></strong></td><td>{{ r.pr_date }}</td><td>{{ r.bp_code or '' }} {{ r.bp_name or '' }}</td><td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td><td>{{ r.total_amount|vnd }}</td></tr>{% else %}<tr><td colspan="5" class="empty-state">Chưa có PR.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><div><h2>Recent PO</h2><div class="card-subtitle">PO mới nhất và trạng thái goods-in-transit.</div></div><a class="btn-secondary" href="/purchase/po">View all</a></div>
+        <div class="table-wrap"><table><thead><tr><th>PO No</th><th>Date</th><th>Vendor</th><th>Status</th><th>GIT</th><th>Amount</th></tr></thead><tbody>
+        {% for r in recent_po %}<tr><td><strong><a class="erp-doc-link" href="/purchase/po/{{ r.id }}" title="View PO {{ r.po_no }}">{{ r.po_no }}</a></strong></td><td>{{ r.po_date }}</td><td>{{ r.bp_code }} {{ r.bp_name }}</td><td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td><td>{{ 'Yes' if r.in_transit_posted else 'No' }}</td><td>{{ r.total_amount|vnd }}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">Chưa có PO.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1 @@
+Run database/15_goods_in_transit_account_1519_migration.sql after v21 if you want new PO goods-in-transit postings to use account 1519 instead of 159. Existing historical journal entries are not changed.

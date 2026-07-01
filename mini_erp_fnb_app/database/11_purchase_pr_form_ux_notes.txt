@@ -1,0 +1,15 @@
+v17 - Purchase Requisition Form UX Update
+
+No SQL migration is required for this update.
+
+Changes:
+1. New PR Date defaults to the current system date and remains editable.
+2. Requested By defaults to the current logged-in user's full name/username and remains editable.
+3. Added Get Price button beside Save PR.
+4. Vendor Price History refreshes from database when Vendor or Item is changed.
+5. Get Price also applies the latest vendor-item price to Expected Unit Price.
+
+Updated files:
+- app/api/purchase.py
+- app/templates/purchase_pr_form.html
+- app/static/style.css

@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Sales</p>
+        <h1>Bán hàng</h1>
+        <p class="page-desc">Tạo đơn bán hàng nhanh cho kênh retail, online, POS hoặc wholesale. Có thể kiểm tra tồn kho và tính giá bán theo giá vốn tồn kho + lợi nhuận mục tiêu.</p>
+        <div class="workflow-strip"><span class="step-pill">Sales Order</span><span class="step-arrow">→</span><span class="step-pill">Availability</span><span class="step-arrow">→</span><span class="step-pill">Delivery</span><span class="step-arrow">→</span><span class="step-pill">COGS / Revenue</span></div>
+    </div>
+</section>
+
+<div class="card">
+    <div class="card-header"><div><h2>Quick Sale</h2><div class="card-subtitle">Để trống Manual SO No nếu muốn hệ thống tự đánh số.</div></div></div>
+    <form method="post" action="/sales/quick-sale" class="erp-form-grid quick-sale-form" id="quick-sale-form">
+        <div class="form-field"><label class="field-caption">Manual SO No optional</label><div class="field-control"><input name="manual_so_no" placeholder="Để trống để tự động đánh số"></div></div>
+        <div class="form-field"><label class="field-caption">External Ref</label><div class="field-control"><input name="external_ref" placeholder="POS receipt/order no"></div></div>
+        <div class="form-field"><label class="field-caption">Sale Channel</label><div class="field-control"><select name="channel_code" id="sale_channel_code" class="searchable-select">{% for ch in channels %}<option value="{{ ch.channel_code }}" {% if ch.channel_code == 'RETAIL' %}selected{% endif %}>{{ ch.channel_code }} - {{ ch.channel_name }} [{{ ch.channel_type }} / Tax: {{ ch.default_tax_code or '-' }}]</option>{% else %}<option value="RETAIL">RETAIL - Retail Store</option>{% endfor %}</select></div></div>
+        <div class="form-field"><label class="field-caption">Customer</label><div class="field-control"><select name="customer_id" class="searchable-select">{% for c in customers %}<option value="{{ c.id }}">{{ c.bp_code }} - {{ c.bp_name }}</option>{% endfor %}</select></div></div>
+        <div class="form-field"><label class="field-caption">Item</label><div class="field-control"><select name="item_id" id="sale_item_id" class="searchable-select">{% for i in items %}<option value="{{ i.id }}" data-channels="{{ i.allowed_channels or '' }}" data-delivery-days="{{ i.delivery_days or 0 }}" data-sales-price="{{ i.sales_price if i.sales_price is not none else '' }}" data-profit-percent="{{ i.profit_percent or 0 }}">{{ i.item_code }} - {{ i.item_name }}</option>{% else %}<option value="">No sellable FINISHED items</option>{% endfor %}</select></div></div>
+        <div class="form-field"><label class="field-caption">Warehouse</label><div class="field-control"><select name="warehouse_id" id="sale_warehouse_id" class="searchable-select">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.warehouse_code }} - {{ w.warehouse_name }}</option>{% endfor %}</select></div></div>
+        <div class="form-field"><label class="field-caption">Quantity</label><div class="field-control"><input name="quantity" id="sale_quantity" type="number" step="0.0001" min="0.0001" required></div></div>
+        <div class="form-field"><label class="field-caption">Unit Price</label><div class="field-control"><input name="unit_price" id="sale_unit_price" type="number" step="0.0001" min="0" required></div></div>
+        <div class="form-field form-span-4 sales-result-field">
+            <label class="field-caption">Availability / Pricing Result</label>
+            <div class="field-control"><div id="sales-check-result" class="help-text">Bấm Check Availability để kiểm tra tồn kho hoặc Tính giá để đề xuất giá bán.</div></div>
+        </div>
+        <div class="form-field form-span-4 sales-action-field">
+            <div class="field-control sales-action-row">
+                <button type="button" class="btn-secondary" id="check-availability-btn">Check Availability</button>
+                <button type="button" class="btn-secondary" id="calculate-price-btn">Tính giá</button>
+                <button type="submit" class="btn-primary">Post Sale</button>
+            </div>
+        </div>
+    </form>
+    <div class="help-text sales-card-note">Only Item Type = FINISHED with Allow Standard Sale enabled can be selected here. Other item types should not be sold through standard sales; scrap sale will be handled separately.</div>
+</div>
+<div class="erp-modal-backdrop" id="sales-production-modal" hidden>
+    <div class="erp-modal-card" role="dialog" aria-modal="true" aria-labelledby="sales-production-modal-title">
+        <div class="erp-modal-header">
+            <div>
+                <p class="eyebrow">Sales Availability</p>
+                <h2 id="sales-production-modal-title">Tạo yêu cầu sản xuất?</h2>
+            </div>
+            <button type="button" class="erp-modal-close" id="sales-production-modal-close" aria-label="Close">×</button>
+        </div>
+        <div class="erp-modal-body">
+            <p id="sales-production-modal-message">Không đủ hàng trong warehouse đã chọn.</p>
+            <div class="erp-modal-summary" id="sales-production-modal-summary"></div>
+        </div>
+        <div class="erp-modal-actions">
+            <button type="button" class="btn-secondary btn-small" id="sales-production-modal-cancel">Không tạo</button>
+            <button type="button" class="btn-primary btn-small" id="sales-production-modal-confirm">Tạo yêu cầu sản xuất</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+  const form = document.getElementById('quick-sale-form');
+  const channel = document.getElementById('sale_channel_code');
+  const item = document.getElementById('sale_item_id');
+  const warehouse = document.getElementById('sale_warehouse_id');
+  const qty = document.getElementById('sale_quantity');
+  const unitPrice = document.getElementById('sale_unit_price');
+  const result = document.getElementById('sales-check-result');
+  const checkBtn = document.getElementById('check-availability-btn');
+  const priceBtn = document.getElementById('calculate-price-btn');
+  const modal = document.getElementById('sales-production-modal');
+  const modalMessage = document.getElementById('sales-production-modal-message');
+  const modalSummary = document.getElementById('sales-production-modal-summary');
+  const modalConfirm = document.getElementById('sales-production-modal-confirm');
+  const modalCancel = document.getElementById('sales-production-modal-cancel');
+  const modalClose = document.getElementById('sales-production-modal-close');
+
+  let pendingShortageData = null;
+
+  function fmt(n){
+    return window.erpFormatNumber ? window.erpFormatNumber(n, {maximumFractionDigits: 4}) : String(n || '0');
+  }
+  function num(v){ return window.erpParseNumber ? window.erpParseNumber(v) : Number(v || 0); }
+  function setNum(input, value){ if(window.erpSetNumberInput) window.erpSetNumberInput(input, value); else if(input) input.value = value; }
+  function setResult(type, html){
+    if(!result) return;
+    result.className = `sales-result-box sales-result-${type || 'info'}`;
+    result.innerHTML = html;
+  }
+  function setBusy(button, busyText){
+    if(!button) return () => {};
+    const oldText = button.textContent;
+    button.disabled = true;
+    button.textContent = busyText || 'Processing...';
+    return () => { button.disabled = false; button.textContent = oldText; };
+  }
+  function syncItemsByChannel(){
+    if(!channel || !item) return;
+    const code = channel.value || '';
+    let firstVisible = null;
+    Array.from(item.options).forEach(opt => {
+      const allowed = (opt.dataset.channels || '').split(',').map(x => x.trim()).filter(Boolean);
+      const ok = !opt.value || (allowed.length > 0 && allowed.includes(code));
+      opt.hidden = !ok;
+      opt.disabled = !ok;
+      if(ok && opt.value && !firstVisible) firstVisible = opt;
+    });
+    if(item.selectedOptions[0]?.disabled && firstVisible) item.value = firstVisible.value;
+    syncPriceFromItem();
+    if(window.refreshSearchableSelects) window.refreshSearchableSelects(form);
+  }
+  function syncPriceFromItem(){
+    const opt = item?.selectedOptions?.[0];
+    if(opt && unitPrice && (!unitPrice.value || num(unitPrice.value) === 0)) {
+      if((opt.dataset.salesPrice || '').trim() !== '') setNum(unitPrice, opt.dataset.salesPrice);
+    }
+  }
+  function validateAvailabilityInput(){
+    const quantity = num(qty?.value || 0);
+    if(!item?.value || item.value === '0'){
+      return 'Vui lòng chọn Item trước khi Check Availability.';
+    }
+    if(!warehouse?.value || warehouse.value === '0'){
+      return 'Vui lòng chọn Warehouse trước khi Check Availability.';
+    }
+    if(!Number.isFinite(quantity) || quantity <= 0){
+      return 'Vui lòng nhập Quantity lớn hơn 0 trước khi Check Availability.';
+    }
+    return '';
+  }
+  function openProductionModal(data){
+    pendingShortageData = data;
+    if(!modal) return;
+    const itemText = item?.selectedOptions?.[0]?.textContent?.trim() || '';
+    const warehouseText = warehouse?.selectedOptions?.[0]?.textContent?.trim() || '';
+    modalMessage.textContent = 'Không đủ hàng trong warehouse đã chọn. Bạn có muốn tạo yêu cầu sản xuất để gửi cho Production không?';
+    modalSummary.innerHTML = `
+      <div><strong>Item:</strong> ${itemText || '-'}</div>
+      <div><strong>Warehouse:</strong> ${warehouseText || '-'}</div>
+      <div><strong>Required:</strong> ${fmt(data.required_qty)}</div>
+      <div><strong>Available:</strong> ${fmt(data.available_qty)}</div>
+      <div><strong>Shortage:</strong> ${fmt(data.shortage_qty)}</div>
+    `;
+    modal.hidden = false;
+    document.body.classList.add('modal-open');
+    modalConfirm?.focus();
+  }
+  function closeProductionModal(){
+    if(!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove('modal-open');
+  }
+  async function createProductionRequest(data){
+    const restore = setBusy(modalConfirm, 'Đang tạo...');
+    try{
+      const fd = new FormData();
+      fd.append('item_id', item.value || '0');
+      fd.append('warehouse_id', warehouse.value || '0');
+      fd.append('quantity', data.shortage_qty || qty.value || '0');
+      fd.append('channel_code', channel.value || '');
+      fd.append('note', `Sales shortage request. Required=${data.required_qty}, Available=${data.available_qty}`);
+      const reqRes = await fetch('/sales/api/production-request', {method:'POST', body:fd});
+      const reqData = await reqRes.json();
+      if(reqData.ok){
+        closeProductionModal();
+        setResult('success', `✅ Đã tạo yêu cầu sản xuất <strong>#${reqData.request_id}</strong>. Production user sẽ thấy yêu cầu này tại màn hình Sản xuất.`);
+      }else{
+        setResult('error', `❌ ${reqData.error || 'Không thể tạo yêu cầu sản xuất.'}`);
+      }
+    }catch(err){
+      setResult('error', `❌ ${err.message || 'Không thể tạo yêu cầu sản xuất.'}`);
+    }finally{
+      restore();
+    }
+  }
+  async function checkAvailability(options = {}){
+    const inputError = validateAvailabilityInput();
+    if(inputError){
+      setResult('warning', `⚠️ ${inputError}`);
+      throw new Error(inputError);
+    }
+    const restore = options.silent ? (()=>{}) : setBusy(checkBtn, 'Checking...');
+    try{
+      const params = new URLSearchParams({item_id:item.value||0, warehouse_id:warehouse.value||0, quantity:window.erpToBackendNumberString ? window.erpToBackendNumberString(qty.value||0) : qty.value||0});
+      const res = await fetch(`/sales/api/check-availability?${params.toString()}`);
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Cannot check availability.');
+      const available = num(data.available_qty || 0);
+      const required = num(data.required_qty || 0);
+      const shortage = Math.max(0, required - available);
+      const enough = data.enough === true || data.enough === 'true';
+      if(enough && available >= required && required > 0){
+        setResult('success', `✅ Đủ hàng. Available: <strong>${fmt(data.available_qty)}</strong>, Required: <strong>${fmt(data.required_qty)}</strong>.`);
+        return data;
+      }
+      data.enough = false;
+      data.shortage_qty = shortage;
+      setResult('warning', `⚠️ Không đủ hàng. Available: <strong>${fmt(data.available_qty)}</strong>, Required: <strong>${fmt(data.required_qty)}</strong>, Shortage: <strong>${fmt(shortage)}</strong>.`);
+      if(options.askProduction !== false){
+        openProductionModal(data);
+      }
+      return data;
+    }catch(err){
+      setResult('error', `❌ ${err.message || 'Cannot check availability.'}`);
+      throw err;
+    }finally{
+      restore();
+    }
+  }
+  async function calculatePrice(){
+    const inputError = validateAvailabilityInput();
+    if(inputError){
+      setResult('warning', `⚠️ ${inputError}`);
+      throw new Error(inputError);
+    }
+    const restore = setBusy(priceBtn, 'Calculating...');
+    try{
+      const params = new URLSearchParams({item_id:item.value||0, warehouse_id:warehouse.value||0, quantity:window.erpToBackendNumberString ? window.erpToBackendNumberString(qty.value||1) : qty.value||1});
+      const res = await fetch(`/sales/api/calculate-price?${params.toString()}`);
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Cannot calculate price.');
+      setNum(unitPrice, data.suggested_unit_price || 0);
+      setResult('info', `💰 Method: <strong>${data.method}</strong>. Unit cost: <strong>${fmt(data.unit_cost)}</strong>. Profit: <strong>${fmt(data.profit_percent)}%</strong>. Suggested price: <strong>${fmt(data.suggested_unit_price)}</strong>. Available: <strong>${fmt(data.available_qty)}</strong>.`);
+    }catch(err){
+      setResult('error', `❌ ${err.message || 'Cannot calculate price.'}`);
+      throw err;
+    }finally{
+      restore();
+    }
+  }
+  channel?.addEventListener('change', syncItemsByChannel);
+  item?.addEventListener('change', syncPriceFromItem);
+  checkBtn?.addEventListener('click',()=>checkAvailability().catch(()=>{}));
+  priceBtn?.addEventListener('click',()=>calculatePrice().catch(()=>{}));
+  modalConfirm?.addEventListener('click',()=>{
+    if(pendingShortageData) createProductionRequest(pendingShortageData);
+  });
+  modalCancel?.addEventListener('click',()=>{
+    closeProductionModal();
+    setResult('warning', '⚠️ Chưa tạo yêu cầu sản xuất. Vui lòng xử lý thiếu hàng trước khi post sale.');
+  });
+  modalClose?.addEventListener('click',()=>{
+    closeProductionModal();
+  });
+  modal?.addEventListener('click',(e)=>{
+    if(e.target === modal) closeProductionModal();
+  });
+  document.addEventListener('keydown',(e)=>{
+    if(e.key === 'Escape' && modal && !modal.hidden) closeProductionModal();
+  });
+  form?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    try{
+      const data = await checkAvailability({silent:true, askProduction:true});
+      if(!data.enough){
+        return false;
+      }
+      form.submit();
+    }catch(err){
+      return false;
+    }
+  });
+  syncItemsByChannel();
+  setResult('info', 'Bấm Check Availability để kiểm tra tồn kho hoặc Tính giá để đề xuất giá bán.');
+})();
+</script>
+
+<div class="card">
+    <div class="card-header"><div><h2>Recent Sales Orders</h2><div class="card-subtitle">20 đơn bán hàng gần nhất.</div></div></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>SO No</th><th>Date</th><th>Customer ID</th><th>Status</th><th class="num">Total</th><th>Channel</th></tr></thead>
+            <tbody>
+            {% for r in orders %}<tr><td><strong>{{ r.so_no }}</strong></td><td>{{ r.so_date }}</td><td>{{ r.customer_id }}</td><td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td><td class="num">{{ r.grand_total|vnd }}</td><td><span class="badge">{{ r.channel_code }}</span></td></tr>{% else %}<tr><td colspan="6" class="empty-state">Chưa có Sales Order.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

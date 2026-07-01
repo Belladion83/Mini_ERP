@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Security</p>
+        <h1>User Master Data</h1>
+        <p class="page-desc">Quản lý các user có thể đăng nhập ERP mini và group phân quyền của từng user.</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-secondary" href="/admin">← Back</a>
+        <a class="btn" href="/admin/users/new">+ New User</a>
+    </div>
+</section>
+
+<div class="card">
+    <form method="get" class="toolbar-form">
+        <label class="search-label">Search
+            <input type="text" name="q" value="{{ q }}" placeholder="Username, full name, email...">
+        </label>
+        <label class="inline-check"><input type="checkbox" name="include_inactive" value="1" {% if include_inactive %}checked{% endif %}> Include inactive</label>
+        <button type="submit">Search</button>
+        <a class="btn btn-secondary" href="/admin/users">Reset</a>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header"><div><h2>User List</h2><div class="card-subtitle">Dùng Edit để đổi group, reset password hoặc active/inactive user.</div></div><span class="badge">{{ rows|length }} users</span></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Username</th><th>Full Name</th><th>Email</th><th>Groups</th><th>Failed Attempts</th><th>Status</th><th>Lock</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td><strong>{{ row.username }}</strong></td>
+                    <td>{{ row.full_name or '-' }}</td>
+                    <td>{{ row.email or '-' }}</td>
+                    <td>{{ row.group_codes or '-' }}</td>
+                    <td>{{ row.failed_login_count or 0 }}/5</td>
+                    <td>{% if row.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-inactive">Inactive</span>{% endif %}</td>
+                    <td>{% if row.is_locked %}<span class="badge badge-locked">Locked</span>{% else %}<span class="badge badge-active">Unlocked</span>{% endif %}</td>
+                    <td class="action-cell"><div class="row-actions"><a class="btn btn-small btn-secondary" href="/admin/users/{{ row.id }}/edit">Edit</a></div></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="8" class="empty-state">Chưa có user.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

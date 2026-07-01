@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Purchasing</p>
+    <h1>Release Purchase Order</h1>
+    <p class="page-desc">Kiểm tra PO trên màn hình giống Edit trước khi bấm Release. Có thể chọn ghi nhận hàng đi đường: Dr 1519 / Cr 331.</p>
+  </div>
+  <a class="btn-secondary" href="/purchase/po">Back</a>
+</section>
+
+{% if not doc %}
+<div class="card"><p class="empty-state">Không tìm thấy PO.</p></div>
+{% else %}
+<div class="card transaction-form-card">
+  <div class="card-header po-card-header">
+    <div>
+      <h2>PO Header</h2>
+      <div class="card-subtitle">{{ doc.po_no }} | {{ doc.bp_code }} - {{ doc.bp_name }} | Amount: {{ doc.total_amount|vnd }}</div>
+    </div>
+    <span class="badge badge-{{ doc.status|lower }}">{{ doc.status }}</span>
+  </div>
+
+  <div class="erp-form-grid">
+    <div class="form-field"><label class="field-caption">PO No</label><div class="field-control"><input value="{{ doc.po_no }}" readonly></div></div>
+    <div class="form-field"><label class="field-caption">PO Date</label><div class="field-control"><input type="date" value="{{ doc.po_date }}" readonly></div></div>
+    <div class="form-field form-span-2"><label class="field-caption">Vendor</label><div class="field-control"><input value="{{ doc.bp_code }} - {{ doc.bp_name }}" readonly></div></div>
+    <div class="form-field form-span-2"><label class="field-caption">Notes</label><div class="field-control"><input value="{{ doc.notes or '' }}" readonly></div></div>
+  </div>
+
+  <div class="line-panel">
+    <div class="line-panel-header"><div><h2>PO Lines</h2><div class="card-subtitle">Thông tin chỉ xem trên màn hình release.</div></div></div>
+    <div class="table-wrap line-table-wrap">
+      <table class="entry-lines-table">
+        <thead><tr><th>#</th><th>PR Line</th><th>Item</th><th>Warehouse</th><th>Base Unit</th><th>Order Unit</th><th>Qty</th><th>Rate</th><th>Unit Price</th><th>Line Amount</th><th>Tax Code</th><th>Received</th></tr></thead>
+        <tbody>
+          {% for l in lines %}
+          <tr><td>{{ l.line_no }}</td><td>{{ 'Line ' ~ l.pr_line_no if l.pr_line_no else '-' }}</td><td>{{ l.item_code }} - {{ l.item_name }}</td><td>{{ l.warehouse_code }} - {{ l.warehouse_name }}</td><td>{{ l.base_uom or l.item_base_uom or '-' }}</td><td>{{ l.order_uom or l.base_uom or l.item_base_uom or '-' }}</td><td>{{ l.quantity|qty }}</td><td>{{ l.order_to_base_rate|qty if l.order_to_base_rate else '1' }}</td><td>{{ l.unit_price|vnd }}</td><td>{{ l.line_amount|vnd }}</td><td>{{ l.tax_code or '-' }}</td><td>{{ l.received_qty|qty }}</td></tr>
+          {% else %}<tr><td colspan="12" class="empty-state">PO chưa có line.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="transaction-bottom-bar">
+    <div class="bottom-left">
+      {% if doc.status == 'DRAFT' %}
+      <form method="post" action="/purchase/po/{{ doc.id }}/release" id="po-release-confirm-form">
+        <label class="git-inline"><span>Post goods-in-transit: Dr 1519 / Cr 331</span><input type="checkbox" name="post_in_transit"></label>
+      </form>
+      {% else %}
+      <span class="page-desc">PO này đã release/post nên không còn chỉnh sửa được.</span>
+      {% endif %}
+    </div>
+    <div class="bottom-right action-row">
+      <a class="btn-secondary" href="/purchase/po/{{ doc.id }}/edit">{{ 'Edit PO' if doc.status == 'DRAFT' else 'View PO' }}</a>
+      {% if doc.status == 'DRAFT' %}<button type="submit" form="po-release-confirm-form" class="btn-success">Release PO</button>{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

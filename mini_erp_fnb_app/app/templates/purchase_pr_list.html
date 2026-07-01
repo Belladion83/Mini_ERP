@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Purchasing · Selection Screen</p>
+    <h1>Purchase Requisition Query</h1>
+    <p class="page-desc">Nhập điều kiện lọc để tìm PR cần xử lý. Bấm trực tiếp vào số PR để mở chứng từ; các nút Edit / Release / Cancel nằm trên màn hình chứng từ.</p>
+  </div>
+</section>
+
+<div class="card selection-screen-card">
+  <div class="card-header">
+    <div>
+      <h2>Selection Criteria</h2>
+      <div class="card-subtitle">Có thể lọc theo khoảng số chứng từ, khoảng ngày bằng calendar, vendor, amount và status.</div>
+    </div>
+    <a class="btn-primary" href="/purchase/pr/new">+ New PR</a>
+  </div>
+  <form method="get" action="/purchase/pr" class="selection-grid">
+    <div class="form-field">
+      <label class="field-caption">PR No From</label>
+      <div class="field-control"><input name="pr_no_from" value="{{ filters.pr_no_from }}" placeholder="PR-..."></div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">PR No To</label>
+      <div class="field-control"><input name="pr_no_to" value="{{ filters.pr_no_to }}" placeholder="PR-..."></div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">PR Date From</label>
+      <div class="field-control"><input type="date" name="date_from" value="{{ filters.date_from }}"></div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">PR Date To</label>
+      <div class="field-control"><input type="date" name="date_to" value="{{ filters.date_to }}"></div>
+    </div>
+    <div class="form-field form-span-2">
+      <label class="field-caption">Vendor Code / Name Contains</label>
+      <div class="field-control"><input name="vendor_q" value="{{ filters.vendor_q }}" placeholder="Nhập mã hoặc tên vendor"></div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">Amount From</label>
+      <div class="field-control"><input type="number" step="0.0001" name="amount_from" value="{{ filters.amount_from }}"></div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">Amount To</label>
+      <div class="field-control"><input type="number" step="0.0001" name="amount_to" value="{{ filters.amount_to }}"></div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">Status</label>
+      <div class="field-control">
+        <select name="status" class="searchable-select">
+          <option value="" {% if not filters.status %}selected{% endif %}>All Status</option>
+          {% for st in status_options %}<option value="{{ st }}" {% if filters.status == st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-field selection-actions-field no-caption">
+      <div class="field-control action-row">
+        <button type="submit" class="btn-primary">Execute</button>
+        <a class="btn-secondary" href="/purchase/pr?status=">Clear</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card list-card">
+  <div class="table-wrap">
+    <table data-erp-table="true" data-erp-table-title="PR Result List" data-use-advanced-filter="true">
+      <thead>
+        <tr>
+          <th>PR No</th>
+          <th>Date</th>
+          <th>Vendor</th>
+          <th>Total Items</th>
+          <th>Open Items</th>
+          <th>PO Created Items</th>
+          <th>Total Qty</th>
+          <th>Total Amount</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><strong><a class="erp-doc-link" href="/purchase/pr/{{ r.id }}" title="View PR {{ r.pr_no }}">{{ r.pr_no }}</a></strong></td>
+          <td>{{ r.pr_date }}</td>
+          <td>{{ r.bp_code or '' }} - {{ r.bp_name or '' }}</td>
+          <td>{{ r.total_items or 0 }}</td>
+          <td>{{ r.open_items or 0 }}</td>
+          <td>{{ r.po_created_items or 0 }}</td>
+          <td>{{ r.total_qty|qty }}</td>
+          <td>{{ r.total_amount|vnd }}</td>
+          <td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="empty-state">Không có PR phù hợp điều kiện lọc.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

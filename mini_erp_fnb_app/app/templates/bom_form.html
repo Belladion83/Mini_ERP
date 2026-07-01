@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block content %}
+{% set view_mode = view_mode|default(false) %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Master Data</p>
+        <h1>{% if view_mode %}View BOM / Recipe{% elif row.id %}Edit BOM / Recipe{% elif is_copy %}Copy BOM / Recipe{% else %}New BOM / Recipe{% endif %}</h1>
+        <p class="page-desc">Maintain BOM cho Finished Good. Mỗi BOM gồm header và danh sách component nguyên vật liệu/bao bì.</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-secondary" href="/masters/boms">← Back to BOM List</a>
+    </div>
+</section>
+
+<div class="master-tabs">
+    {% for ent, cfg in entities.items() %}
+        <a class="master-tab {{ 'active' if ent == 'boms' else '' }}" href="/masters/{{ ent }}">{{ cfg.icon }} {{ cfg.title }}</a>
+    {% endfor %}
+</div>
+
+{% if errors %}
+<div class="alert alert-error">
+    <strong>Không thể lưu dữ liệu:</strong>
+    <ul class="error-list">
+        {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2>BOM Header</h2>
+            <div class="card-subtitle">Chọn Finished Good, version và base quantity cho công thức.</div>
+        </div>
+    </div>
+
+    <form id="bom-form" method="post" action="{% if row.id %}/masters/boms/{{ row.id }}/save{% else %}/masters/boms/save-new{% endif %}">
+        <div class="erp-form-grid">
+            <div class="form-field">
+                <label class="field-caption">BOM Code</label>
+                <div class="field-control">
+                    <div class="code-input-row">
+                        <input name="bom_code" value="{{ row.bom_code or '' }}" placeholder="BOM-2026-00001" {% if view_mode or row.id %}readonly{% endif %}>
+                        {% if not row.id and not view_mode %}<button id="btn-generate-bom-code" class="btn btn-secondary btn-generate" type="button">Generate</button>{% endif %}
+                    </div>
+                </div>
+                <div class="help-text">Để trống để hệ thống tự sinh mã BOM. Generate chỉ preview, không tăng Next No.</div>
+            </div>
+
+            <div class="form-field">
+                <label class="field-caption">Finished Good <span class="required">*</span></label>
+                <div class="field-control">
+                    <select name="finished_item_id" required {% if view_mode %}disabled{% endif %}>
+                        <option value="">-- Select Finished Good --</option>
+                        {% for value, label in finished_good_options %}
+                            <option value="{{ value }}" {% if row.finished_item_id|string == value|string %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="help-text">Chỉ hiển thị Item Master có Item Type = FINISHED.</div>
+            </div>
+
+            <div class="form-field">
+                <label class="field-caption">Version No <span class="required">*</span></label>
+                <div class="field-control"><input name="version_no" value="{{ row.version_no or 'V1' }}" required placeholder="V1" {% if view_mode %}readonly{% endif %}></div>
+            </div>
+
+            <div class="form-field">
+                <label class="field-caption">Base Qty <span class="required">*</span></label>
+                <div class="field-control"><input name="base_qty" type="number" step="0.0001" min="0.0001" value="{{ row.base_qty or 1 }}" required {% if view_mode %}readonly{% endif %}></div>
+                <div class="help-text">Ví dụ: BOM cho 1 chai, 1 phần, 100 gram...</div>
+            </div>
+
+            <div class="form-field checkbox-field">
+                <label class="field-caption">Active</label>
+                <label class="switch-row field-control">
+                    <input type="checkbox" name="is_active" {% if row.is_active %}checked{% endif %} {% if view_mode %}disabled{% endif %}>
+                    <span class="muted">Enabled</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="bom-component-panel">
+            <div class="card-header bom-lines-header">
+                <div>
+                    <h2>BOM Components</h2>
+                    <div class="card-subtitle">Nhập nguyên vật liệu/bao bì cấu thành Finished Good. Dòng trống sẽ được bỏ qua khi Save.</div>
+                </div>
+                {% if not view_mode %}<button id="btn-add-component-line" class="btn btn-secondary" type="button">+ Add Line</button>{% endif %}
+            </div>
+
+            <div class="table-wrap bom-table-wrap">
+                <table class="bom-lines-table">
+                    <thead>
+                        <tr>
+                            <th style="width:48%">Component Item</th>
+                            <th class="num" style="width:18%">Qty Per</th>
+                            <th class="num" style="width:18%">Scrap %</th>
+                            <th style="width:16%">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bom-lines-body">
+                    {% for c in components %}
+                        <tr class="bom-line-row">
+                            <td>
+                                <select name="component_item_id" {% if view_mode %}disabled{% endif %}>
+                                    <option value="">-- Select component --</option>
+                                    {% for value, label in component_item_options %}
+                                        <option value="{{ value }}" {% if c.component_item_id|string == value|string %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input class="num-input" name="qty_per" type="number" step="0.000001" min="0" value="{{ c.qty_per if c.qty_per is not none else '' }}" placeholder="0.000000" {% if view_mode %}readonly{% endif %}></td>
+                            <td><input class="num-input" name="scrap_percent" type="number" step="0.0001" min="0" value="{{ c.scrap_percent if c.scrap_percent is not none and c.scrap_percent != '' else '0' }}" placeholder="0" {% if view_mode %}readonly{% endif %}></td>
+                            <td>{% if not view_mode %}<button class="btn btn-small btn-secondary btn-remove-line" type="button">Remove</button>{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            {% if view_mode and row.id %}
+                <a class="btn btn-primary" href="/masters/boms/{{ row.id }}/edit">Edit</a>
+                <a class="btn btn-secondary" href="/masters/boms">Back</a>
+            {% else %}
+                <button type="submit">💾 Save</button>
+                <a class="btn btn-secondary" href="/masters/boms">Cancel</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    const form = document.getElementById('bom-form');
+    const btnGenerate = document.getElementById('btn-generate-bom-code');
+    const btnAdd = document.getElementById('btn-add-component-line');
+    const body = document.getElementById('bom-lines-body');
+
+    if (btnGenerate && form) {
+        btnGenerate.addEventListener('click', async function () {
+            const originalText = btnGenerate.textContent;
+            btnGenerate.disabled = true;
+            btnGenerate.textContent = 'Generating...';
+            try {
+                const res = await fetch('/masters/boms/generate-code', {
+                    method: 'POST',
+                    body: new FormData(form)
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Cannot generate BOM code');
+                const codeInput = form.querySelector('input[name="bom_code"]');
+                if (codeInput) codeInput.value = data.code;
+            } catch (e) {
+                window.erpAlert(e.message || 'Không thể tự sinh mã BOM. Vui lòng kiểm tra Document Numbering.', {title:'Notification', type:'warning'});
+            } finally {
+                btnGenerate.disabled = false;
+                btnGenerate.textContent = originalText;
+            }
+        });
+    }
+
+    function makeLine() {
+        const first = body.querySelector('.bom-line-row');
+        const row = first ? first.cloneNode(true) : document.createElement('tr');
+        row.className = 'bom-line-row';
+        if (!first) return row;
+        row.querySelectorAll('select').forEach(el => el.value = '');
+        row.querySelectorAll('input').forEach(el => {
+            el.value = el.name === 'scrap_percent' ? '0' : '';
+        });
+        return row;
+    }
+
+    if (btnAdd && body) {
+        btnAdd.addEventListener('click', function () {
+            body.appendChild(makeLine());
+        });
+    }
+
+    if (body) {
+        body.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-remove-line');
+            if (!btn) return;
+            const rows = body.querySelectorAll('.bom-line-row');
+            const row = btn.closest('.bom-line-row');
+            if (rows.length <= 1) {
+                row.querySelectorAll('select').forEach(el => el.value = '');
+                row.querySelectorAll('input').forEach(el => el.value = el.name === 'scrap_percent' ? '0' : '');
+                return;
+            }
+            row.remove();
+        });
+    }
+})();
+</script>
+{% endblock %}

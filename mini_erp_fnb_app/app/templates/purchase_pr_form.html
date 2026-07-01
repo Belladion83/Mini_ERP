@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block content %}
+{% set view_mode = view_mode|default(false) %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Purchasing</p>
+    <h1>{{ 'View Purchase Requisition' if view_mode else 'Edit Purchase Requisition' if doc else 'New Purchase Requisition' }}</h1>
+    <p class="page-desc">PR hỗ trợ nhiều line, default ngày hệ thống và default người yêu cầu theo user đang đăng nhập.</p>
+  </div>
+  <a class="btn-secondary dirty-link" href="/purchase/pr">Back</a>
+</section>
+
+{% set selected_vendor = doc.vendor_id if doc else None %}
+{% set is_editable = ((not doc) or doc.status == 'DRAFT') and not view_mode %}
+<div class="card transaction-form-card" data-dirty-guard="true" data-doc-locked="{{ 'true' if doc and not is_editable else 'false' }}">
+  <div class="card-header">
+    <div>
+      <h2>PR Header</h2>
+      <div class="card-subtitle">Để trống PR No nếu muốn hệ thống tự đánh số.</div>
+      {% if doc and view_mode %}<div class="locked-doc-note">View mode: chứng từ đang ở chế độ chỉ xem. Bấm Edit nếu cần chỉnh sửa các field được phép.</div>{% elif doc and not is_editable %}<div class="locked-doc-note">Chứng từ đã {{ doc.status }} nên toàn bộ Header và Line Item đang ở chế độ chỉ xem.</div>{% endif %}
+    </div>
+    {% if doc %}<span class="badge badge-{{ doc.status|lower }}">{{ doc.status }}</span>{% endif %}
+  </div>
+
+  <form method="post" action="/purchase/pr/save" id="pr-form">
+    <input type="hidden" name="pr_id" value="{{ doc.id if doc else 0 }}">
+    <div class="erp-form-grid">
+      <div class="form-field">
+        <label class="field-caption">Manual PR No optional</label>
+        <div class="field-control"><input name="manual_pr_no" value="{{ doc.pr_no if doc else '' }}" {% if doc %}readonly{% endif %} placeholder="Để trống để tự động đánh số"></div>
+      </div>
+      <div class="form-field">
+        <label class="field-caption">PR Date</label>
+        <div class="field-control"><input type="date" name="pr_date" id="pr_date" value="{{ doc.pr_date if doc else default_pr_date }}" {% if not is_editable %}readonly{% endif %}></div>
+      </div>
+      <div class="form-field">
+        <label class="field-caption">Vendor</label>
+        <div class="field-control">
+          <select name="vendor_id" id="vendor_id" class="searchable-select" {% if not is_editable %}disabled{% endif %}>
+            <option value="0">-- Select Vendor --</option>
+            {% for v in vendors %}<option value="{{ v.id }}" {% if selected_vendor==v.id %}selected{% endif %}>{{ v.bp_code }} - {{ v.bp_name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="field-caption">Requested By</label>
+        <div class="field-control"><input name="requested_by_name" value="{{ doc.requested_by_name if doc and doc.requested_by_name else default_requested_by }}" {% if not is_editable %}readonly{% endif %}></div>
+      </div>
+      <div class="form-field form-span-2">
+        <label class="field-caption">Notes</label>
+        <div class="field-control"><input name="notes" value="{{ doc.notes if doc else '' }}" {% if not is_editable %}readonly{% endif %}></div>
+      </div>
+    </div>
+
+    <div class="line-panel">
+      <div class="line-panel-header">
+        <div>
+          <h2>PR Lines</h2>
+          <div class="card-subtitle">Mỗi PR có thể có nhiều line. Expected Price là Unit Price theo Order Unit: user có thể nhập tay hoặc lấy từ Vendor Price History bằng nút Get Price. Tỷ lệ UoM chỉ dùng để quy đổi Base Quantity; Line Amount = Qty (Order Unit) × Expected Price.</div>
+        </div>
+        {% if is_editable %}<button type="button" class="btn-secondary" id="add-pr-line">+ Add Line</button>{% endif %}
+      </div>
+      <div class="table-wrap line-table-wrap">
+        <table class="entry-lines-table" id="pr-lines-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th>Warehouse</th>
+              <th>Base Unit</th>
+              <th>Order Unit</th>
+              <th>Qty (Order Unit)</th>
+              <th>Rate to Base</th>
+              <th>Expected Price (Unit Price)</th>
+              <th>Line Amount</th>
+              <th>Tax Code</th>
+              <th>Required Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pr-lines-body">
+            {% set existing_lines = lines if lines else [None] %}
+            {% for l in existing_lines %}
+            <tr class="entry-line-row">
+              <td class="line-no">{{ loop.index }}</td>
+              <td>
+                <select name="line_item_id" class="line-item searchable-select" required {% if not is_editable %}disabled{% endif %}>
+                  <option value="">-- Select Item --</option>
+                  {% for i in items %}
+                    <option value="{{ i.id }}" data-input-tax="{{ i.input_tax_code_id or 0 }}" data-cost="{{ i.standard_cost or 0 }}" data-base-uom="{{ i.base_uom or '' }}" data-estimate-receive-days="{{ i.estimate_receive_days or 0 }}" {% if l and l.item_id==i.id %}selected{% endif %}>{{ i.item_code }} - {{ i.item_name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select name="line_warehouse_id" class="searchable-select" required {% if not is_editable %}disabled{% endif %}>
+                  <option value="">-- Select Warehouse --</option>
+                  {% for w in warehouses %}
+                    <option value="{{ w.id }}" {% if l and l.warehouse_id==w.id %}selected{% endif %}>{{ w.warehouse_code }} - {{ w.warehouse_name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input class="uom-input line-base-uom" value="{{ l.base_uom if l and l.base_uom else l.item_base_uom if l and l.item_base_uom else '' }}" readonly></td>
+              <td>
+                <select class="uom-input line-order-uom searchable-select" name="line_order_uom" {% if not is_editable %}disabled{% endif %}>
+                  {% set selected_uom = l.order_uom if l and l.order_uom else l.base_uom if l and l.base_uom else l.item_base_uom if l and l.item_base_uom else '' %}
+                  <option value="">-- Unit --</option>
+                  {% for u in unit_options %}<option value="{{ u }}" {% if selected_uom == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                  {% if selected_uom and selected_uom not in unit_options %}<option value="{{ selected_uom }}" selected>{{ selected_uom }}</option>{% endif %}
+                </select>
+              </td>
+              <td><input class="num-input" name="line_quantity" type="number" step="0.0001" min="0.0001" value="{{ l.quantity if l else '1' }}" required {% if not is_editable %}readonly{% endif %}></td>
+              <td><input class="num-input line-rate" name="line_order_to_base_rate" type="number" step="0.000001" min="0.000001" value="{{ l.order_to_base_rate if l and l.order_to_base_rate else '1' }}" {% if not is_editable %}readonly{% endif %}></td>
+              <td><input class="num-input line-price" name="line_expected_unit_price" type="number" step="0.0001" min="0" value="{{ l.expected_unit_price if l else '0' }}" required {% if not is_editable %}readonly{% endif %}></td>
+              <td class="num line-amount-cell">{{ l.line_amount|vnd if l and l.line_amount is defined and l.line_amount is not none else '0' }}</td>
+              <td>
+                <select name="line_tax_code_id" class="line-tax searchable-select" {% if not is_editable %}disabled{% endif %}>
+                  <option value="0">-- None --</option>
+                  {% for t in tax_codes %}
+                    <option value="{{ t.id }}" {% if l and l.tax_code_id==t.id %}selected{% endif %}>{{ t.tax_code }} - {{ t.rate|qty }}%</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input name="line_required_date" type="date" value="{{ l.required_date if l and l.required_date else '' }}" {% if not is_editable %}readonly{% endif %}></td>
+              <td>{% if is_editable %}<button type="button" class="btn-secondary btn-small remove-line">Remove</button>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="form-actions form-actions-right action-row document-action-row">
+      <a class="btn-secondary dirty-link" href="/purchase/pr">Back to Selection</a>
+      {% if view_mode and doc and doc.status == 'DRAFT' %}<a class="btn-primary" href="/purchase/pr/{{ doc.id }}/edit">Edit</a>{% endif %}
+      {% if is_editable %}
+        <button type="button" id="get-price-btn" class="btn-secondary">Get Price</button>
+        <button type="submit" class="btn-primary">💾 Save PR</button>
+      {% endif %}
+      {% if doc and doc.status == 'DRAFT' %}<a class="btn-success" href="/purchase/pr/{{ doc.id }}/release">Release PR</a>{% endif %}
+      {% if doc and doc.status == 'RELEASED' %}<a class="btn-secondary" href="/purchase/po/new?pr_id={{ doc.id }}">Create PO</a>{% endif %}
+      {% if doc and doc.status in ['DRAFT','RELEASED'] %}
+        <button type="submit" class="btn-danger" form="pr-cancel-form">Cancel PR</button>
+      {% endif %}
+    </div>
+  </form>
+  {% if doc and doc.status in ['DRAFT','RELEASED'] %}
+  <form id="pr-cancel-form" method="post" action="/purchase/pr/{{ doc.id }}/cancel" onsubmit="return window.erpConfirmSubmit(this, 'Huỷ PR này?', {title:'Cancel Purchase Requisition', confirmText:'Cancel PR', cancelText:'Back', type:'warning'});">
+    <input type="hidden" name="reason" value="Cancelled from transaction screen">
+  </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h2>Vendor Price History</h2>
+      <div class="card-subtitle">Tự update khi chọn Vendor hoặc đổi Item line đang đứng. Nút Get Price sẽ lấy Unit Price theo Order Unit của từng PR Line, không lấy tổng giá trị GR.</div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Source</th><th>Unit Price</th><th>Currency</th></tr></thead>
+      <tbody id="price-history-body">
+        {% for p in price_history %}
+          <tr><td>{{ p.doc_date }}</td><td>{{ p.source_doc_type }}</td><td>{{ p.unit_price|vnd }}</td><td>{{ p.currency_code }}</td></tr>
+        {% else %}
+          <tr><td colspan="4" class="empty-state">Chưa có lịch sử giá cho Vendor + Item đang chọn.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const vendor = document.getElementById('vendor_id');
+  const prDate = document.getElementById('pr_date');
+  const body = document.getElementById('pr-lines-body');
+  const addBtn = document.getElementById('add-pr-line');
+  const getPriceBtn = document.getElementById('get-price-btn');
+  const priceBody = document.getElementById('price-history-body');
+  let activeRow = body?.querySelector('tr');
+
+  function notifySelect(sel){
+    if(sel) sel.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+  function cleanupEnhanced(row){
+    row.querySelectorAll('.searchable-combo').forEach(x => x.remove());
+    row.querySelectorAll('select').forEach(sel => {
+      sel.dataset.searchableReady = '0';
+      sel.style.display = '';
+    });
+  }
+  function renumber(){
+    body.querySelectorAll('tr').forEach((tr, i) => tr.querySelector('.line-no').textContent = i + 1);
+  }
+  function defaultTax(row){
+    const item = row?.querySelector('.line-item');
+    const tax = row?.querySelector('.line-tax');
+    const taxId = item?.selectedOptions[0]?.dataset.inputTax || '0';
+    if(tax && taxId && taxId !== '0'){
+      tax.value = taxId;
+      notifySelect(tax);
+    }
+  }
+
+  function money(n){
+    return window.erpFormatNumber ? window.erpFormatNumber(n, {maximumFractionDigits: 4}) : String(n || '0');
+  }
+  function num(v){ return window.erpParseNumber ? window.erpParseNumber(v) : Number(v || 0); }
+  function setNum(input, value){ if(window.erpSetNumberInput) window.erpSetNumberInput(input, value); else if(input) input.value = value; }
+  function calculateLineAmount(row){
+    const qty = num(row?.querySelector('[name="line_quantity"]')?.value || 0);
+    const price = num(row?.querySelector('.line-price')?.value || 0);
+    const amountCell = row?.querySelector('.line-amount-cell');
+    if(amountCell) amountCell.textContent = money(qty * price);
+  }
+  async function fetchItemDefaults(itemId, orderUom){
+    if(!itemId || itemId === '0') return null;
+    const url = `/purchase/item-purchase-defaults?item_id=${encodeURIComponent(itemId)}&order_uom=${encodeURIComponent(orderUom || '')}`;
+    const data = await fetch(url).then(r => r.json());
+    return data && data.ok ? data : null;
+  }
+  async function applyItemDefaults(row, options){
+    const opts = Object.assign({resetOrderUnit:false}, options || {});
+    const item = row?.querySelector('.line-item');
+    const base = row?.querySelector('.line-base-uom');
+    const order = row?.querySelector('.line-order-uom');
+    const rate = row?.querySelector('.line-rate');
+    if(!item || !item.value) return;
+
+    const selectedBase = item.selectedOptions[0]?.dataset.baseUom || '';
+    if(base) base.value = selectedBase;
+
+    // Only default Order Unit when a new item is selected or the line has no
+    // Order Unit yet. Do not force it back to Base Unit after the user picks
+    // gram/kg/ml/etc. When item is changed, ask backend for the item's purchase
+    // UoM default by sending a blank order_uom.
+    const requestedOrderUom = opts.resetOrderUnit ? '' : (order?.value || selectedBase);
+
+    try{
+      const data = await fetchItemDefaults(item.value, requestedOrderUom);
+      if(data){
+        if(base) base.value = data.base_uom || selectedBase;
+        if(order && (!order.value || opts.resetOrderUnit)){
+          order.value = data.order_uom || selectedBase;
+          if(window.refreshSearchableSelects) window.refreshSearchableSelects(row);
+        }
+        if(rate) setNum(rate, data.order_to_base_rate || '1');
+        // Do not auto-fill Expected Price from Item Master standard cost.
+        // Expected Price is a manually entered/vendor-history Unit Price per Order Unit.
+        const tax = row?.querySelector('.line-tax');
+        if(tax && data.input_tax_code_id && String(data.input_tax_code_id) !== '0' && (!tax.value || tax.value === '0')){ tax.value = String(data.input_tax_code_id); notifySelect(tax); }
+      }else{
+        if(rate && (!rate.value || num(rate.value) <= 0)) setNum(rate, '1');
+      }
+    }catch(err){
+      if(rate && (!rate.value || num(rate.value) <= 0)) setNum(rate, '1');
+    }
+    calculateLineAmount(row);
+  }
+  function defaultUom(row, resetOrderUnit){
+    applyItemDefaults(row, {resetOrderUnit: !!resetOrderUnit});
+  }
+  function addDaysIso(baseDate, days){
+    if(!baseDate) return '';
+    const dt = new Date(baseDate + 'T00:00:00');
+    if(Number.isNaN(dt.getTime())) return '';
+    dt.setDate(dt.getDate() + Number(days || 0));
+    return dt.toISOString().slice(0,10);
+  }
+  function defaultRequiredDate(row, force){
+    const item = row?.querySelector('.line-item');
+    const required = row?.querySelector('input[name="line_required_date"]');
+    if(!item || !required || !prDate) return;
+    const days = item.selectedOptions[0]?.dataset.estimateReceiveDays || '0';
+    const newDate = addDaysIso(prDate.value, days);
+    if(!newDate) return;
+    if(force || !required.value || required.dataset.autoRequiredDate === '1'){
+      required.value = newDate;
+      required.dataset.autoRequiredDate = '1';
+      required.dispatchEvent(new Event('input', {bubbles:true}));
+      required.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+  }
+  function setActive(row){
+    activeRow = row;
+    refreshHistory(false);
+  }
+  function renderHistoryRows(data){
+    if(!priceBody) return;
+    if(!data.rows.length){
+      priceBody.innerHTML = '<tr><td colspan="4" class="empty-state">Chưa có lịch sử giá cho Vendor + Item đang chọn.</td></tr>';
+    } else {
+      priceBody.innerHTML = data.rows.map(x => `<tr><td>${x.doc_date}</td><td>${x.source_doc_type}</td><td class="num">${money(x.unit_price || 0)}</td><td>${x.currency_code}</td></tr>`).join('');
+    }
+  }
+
+  function priceQueryFromRow(row){
+    const orderUom = row?.querySelector('.line-order-uom')?.value || '';
+    const rate = row?.querySelector('.line-rate')?.value || '1';
+    return `order_uom=${encodeURIComponent(orderUom)}&order_to_base_rate=${encodeURIComponent(rate)}`;
+  }
+
+  function fetchLatestPrice(vendorId, itemId, row){
+    const query = priceQueryFromRow(row);
+    return fetch(`/purchase/pr/price-history?vendor_id=${encodeURIComponent(vendorId)}&item_id=${encodeURIComponent(itemId)}&${query}`)
+      .then(r => r.json());
+  }
+
+  function refreshHistory(fillPrice){
+    const row = activeRow || body?.querySelector('tr');
+    const itemId = row?.querySelector('.line-item')?.value || 0;
+    const vendorId = vendor?.value || 0;
+    if(!vendorId || vendorId === '0' || !itemId || itemId === '0' || !priceBody) return Promise.resolve(null);
+
+    return fetchLatestPrice(vendorId, itemId, row)
+      .then(data => {
+        renderHistoryRows(data);
+        if(fillPrice && data.latest_price && row){
+          const priceInput = row.querySelector('.line-price');
+          setNum(priceInput, data.latest_price);
+          priceInput.dispatchEvent(new Event('input', {bubbles:true}));
+          priceInput.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+        return data;
+      });
+  }
+
+  function getLineRows(){
+    return Array.from(body?.querySelectorAll('tr.entry-line-row') || body?.querySelectorAll('tr') || []);
+  }
+
+  function getLineItemId(row){
+    const select = row?.querySelector('select.line-item');
+    return select?.value || '0';
+  }
+
+  function applyPriceToRow(row, price){
+    const priceInput = row?.querySelector('input.line-price');
+    if(!priceInput) return false;
+    priceInput.value = price;
+    priceInput.dispatchEvent(new Event('input', {bubbles:true}));
+    priceInput.dispatchEvent(new Event('change', {bubbles:true}));
+    return true;
+  }
+
+  async function getPricesForAllLines(){
+    const vendorId = vendor?.value || 0;
+    if(!vendorId || vendorId === '0'){
+      window.erpAlert('Please select Vendor before getting prices.', {title:'Missing vendor', type:'warning'});
+      return;
+    }
+
+    const rows = getLineRows();
+    const itemIds = [...new Set(rows.map(row => getLineItemId(row)).filter(v => v && v !== '0'))];
+    if(!rows.length || !itemIds.length){
+      window.erpAlert('Please select Item for at least one PR line.', {title:'Missing item', type:'warning'});
+      return;
+    }
+
+    const originalText = getPriceBtn?.textContent || 'Get Price';
+    if(getPriceBtn){
+      getPriceBtn.disabled = true;
+      getPriceBtn.textContent = 'Getting prices...';
+    }
+
+    let updated = 0;
+    try{
+      for(const row of rows){
+        const itemId = getLineItemId(row);
+        if(!itemId || itemId === '0') continue;
+        const data = await fetchLatestPrice(vendorId, itemId, row);
+        const price = data?.latest_price;
+        if(price !== undefined && price !== null && String(price) !== ''){
+          if(applyPriceToRow(row, price)) updated += 1;
+        }
+      }
+
+      // Keep the price history panel based on the current cursor/active line only.
+      await refreshHistory(false);
+
+      if(updated === 0){
+        window.erpAlert('No vendor price history found for the selected PR lines.', {title:'Get Price', type:'info'});
+      }
+    } catch(err){
+      console.error(err);
+      window.erpAlert('Cannot get vendor prices. Please try again.', {title:'Get Price', type:'danger'});
+    } finally {
+      if(getPriceBtn){
+        getPriceBtn.disabled = false;
+        getPriceBtn.textContent = originalText;
+      }
+    }
+  }
+
+  if(body){
+    body.addEventListener('focusin', e => {
+      const row = e.target.closest('tr');
+      if(row) setActive(row);
+    });
+    body.addEventListener('change', e => {
+      const row = e.target.closest('tr');
+      if(!row) return;
+      if(e.target.classList.contains('line-item')){
+        defaultTax(row);
+        defaultUom(row, true);
+        defaultRequiredDate(row, true);
+        setActive(row);
+      }
+      if(e.target.classList.contains('line-order-uom')){
+        defaultUom(row, false);
+      }
+      if(e.target.classList.contains('line-rate') || e.target.classList.contains('line-price') || e.target.name === 'line_quantity'){
+        calculateLineAmount(row);
+      }
+    });
+    body.addEventListener('input', e => {
+      const row = e.target.closest('tr');
+      if(!row) return;
+      if(e.target.classList.contains('line-rate') || e.target.classList.contains('line-price') || e.target.name === 'line_quantity') calculateLineAmount(row);
+    });
+    body.addEventListener('click', e => {
+      if(e.target.classList.contains('remove-line')){
+        if(body.querySelectorAll('tr').length > 1) e.target.closest('tr').remove();
+        renumber();
+      }
+    });
+    body.addEventListener('searchable:open', e => {
+      const row = e.target.closest('tr');
+      if(row) activeRow = row;
+      if(window.refreshSearchableSelects) window.refreshSearchableSelects(row || body);
+    });
+  }
+
+  if(addBtn){
+    addBtn.addEventListener('click', () => {
+      const base = body.querySelector('tr');
+      const clone = base.cloneNode(true);
+      cleanupEnhanced(clone);
+      clone.querySelectorAll('input').forEach(inp => {
+        if(inp.type === 'number') inp.value = (inp.name.includes('quantity') || inp.name.includes('rate')) ? '1' : '0';
+        else inp.value = '';
+      });
+      clone.querySelectorAll('select').forEach(sel => {
+        sel.selectedIndex = 0;
+        notifySelect(sel);
+      });
+      const amt = clone.querySelector('.line-amount-cell');
+      if(amt) amt.textContent = '0';
+      body.appendChild(clone);
+      renumber();
+      defaultUom(clone, true);
+      defaultTax(clone);
+      defaultRequiredDate(clone, true);
+      if(window.initSearchableSelects) window.initSearchableSelects(clone);
+      setActive(clone);
+    });
+  }
+  if(vendor) vendor.addEventListener('change', () => refreshHistory(false));
+  if(prDate) prDate.addEventListener('change', () => getLineRows().forEach(row => defaultRequiredDate(row, false)));
+  body?.addEventListener('input', e => { if(e.target && e.target.name === 'line_required_date') e.target.dataset.autoRequiredDate = '0'; });
+  if(getPriceBtn) getPriceBtn.addEventListener('click', getPricesForAllLines);
+
+  body?.querySelectorAll('tr').forEach(row => { defaultTax(row); defaultUom(row, false); defaultRequiredDate(row, false); calculateLineAmount(row); });
+  refreshHistory(false);
+})();
+</script>
+<script src="/static/transaction_guard.js?v=96"></script>
+{% endblock %}

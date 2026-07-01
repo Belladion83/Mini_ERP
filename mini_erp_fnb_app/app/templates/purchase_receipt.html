@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Purchasing</p>
+    <h1>Post Goods Receipt</h1>
+    <p class="page-desc">Chọn Receipt Type, PO/Header trước rồi kiểm tra line cần nhập kho trước khi post.</p>
+  </div>
+  <a class="btn-secondary dirty-link" href="/purchase">Back</a>
+</section>
+
+<div data-dirty-guard="true">
+<form method="post" action="/purchase/receipt/post" id="gr-form">
+  <div class="card transaction-form-card">
+    <div class="card-header">
+      <div>
+        <h2>Goods Receipt Header</h2>
+        <div class="card-subtitle">Header chỉ chứa thông tin chung của GR. Thông tin item chỉ hiển thị theo từng mode bên dưới.</div>
+      </div>
+    </div>
+
+    <div class="erp-form-grid gr-header-grid">
+      <div class="form-field">
+        <label class="field-caption">Receipt Type</label>
+        <div class="field-control">
+          <select name="receipt_mode" id="receipt_mode" class="searchable-select">
+            <option value="po_line">From PO Line</option>
+            <option value="po_all">Receive Whole PO</option>
+            <option value="manual">Manual GR</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-field form-span-2" id="po-select-field">
+        <label class="field-caption">PO Number</label>
+        <div class="field-control">
+          <select name="po_id" id="po_id" class="searchable-select">
+            <option value="0">-- Select PO --</option>
+            {% for p in open_pos %}
+            <option value="{{ p.id }}" {% if selected_po_id==p.id %}selected{% endif %}
+                    data-vendor="{{ p.vendor_id }}"
+                    data-open-qty="{{ p.open_qty }}"
+                    data-open-amount="{{ p.open_amount }}"
+                    data-git="{{ 1 if p.in_transit_posted else 0 }}">
+              {{ p.po_no }} | {{ p.bp_code }} - {{ p.bp_name }} | Open Qty {{ p.open_qty|qty }} | {{ p.open_amount|vnd }} | GIT: {{ 'Yes' if p.in_transit_posted else 'No' }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label class="field-caption">GR No. optional</label>
+        <div class="field-control"><input name="manual_gr_no" placeholder="Để trống để tự động đánh số"></div>
+      </div>
+
+      <div class="form-field">
+        <label class="field-caption">Vendor</label>
+        <div class="field-control">
+          <select name="vendor_id" id="vendor_id" class="searchable-select">
+            <option value="0">-- Select Vendor --</option>
+            {% for v in vendors %}<option value="{{ v.id }}">{{ v.bp_code }} - {{ v.bp_name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-field form-span-2">
+        <label class="field-caption">Notes</label>
+        <div class="field-control"><input name="notes" placeholder="Ghi chú cho Goods Receipt nếu có"></div>
+      </div>
+    </div>
+
+    <div class="form-actions form-actions-right" id="whole-po-actions" style="display:none; margin-top:16px;">
+      <button type="submit" class="btn-primary">Post Receipt</button>
+    </div>
+  </div>
+
+  <div class="card transaction-form-card" id="manual-line-card" style="display:none;">
+    <div class="card-header">
+      <div>
+        <h2>Manual Item Receipt</h2>
+        <div class="card-subtitle">Nhập thủ công nhiều item cho cùng một Vendor khi không có PO. Quantity nhập theo Order Unit, hệ thống tự quy đổi sang Base Unit để nhập kho và tính giá trị tồn kho theo Base Quantity × Unit Cost.</div>
+      </div>
+      <button type="button" class="btn-secondary btn-small" id="add-manual-gr-line">+ Add Line</button>
+    </div>
+
+    <div class="table-wrap line-table-wrap purchase-line-table-wrap">
+      <table class="entry-lines-table compact-entry-lines-table" id="manual-gr-lines-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Item</th>
+            <th>Warehouse</th>
+            <th>Base Unit</th>
+            <th>Order Unit</th>
+            <th>Receipt Qty<br><span class="muted">Order Unit</span></th>
+            <th>Rate to Base</th>
+            <th>Unit Cost<br><span class="muted">Theo Order Unit</span></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="manual-gr-lines-body">
+          <tr class="manual-gr-line-row">
+            <td class="line-no">1</td>
+            <td>
+              <select name="manual_line_item_id" class="line-item searchable-select">
+                <option value="0">-- Select Item --</option>
+                {% for i in items %}<option value="{{ i.id }}" data-base-uom="{{ i.base_uom or '' }}">{{ i.item_code }} - {{ i.item_name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="manual_line_warehouse_id" class="searchable-select">
+                <option value="0">-- Select Warehouse --</option>
+                {% for w in warehouses %}<option value="{{ w.id }}">{{ w.warehouse_code }} - {{ w.warehouse_name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input class="uom-input manual-base-uom" readonly placeholder="Base"></td>
+            <td>
+              <select name="manual_line_order_uom" class="uom-input manual-order-uom searchable-select">
+                <option value="">-- Unit --</option>
+                {% for u in unit_options %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input name="manual_line_quantity" class="num-input" type="number" step="0.0001" min="0.0001" value="1"></td>
+            <td><input name="manual_line_order_to_base_rate" class="num-input manual-rate" type="number" step="0.000001" min="0.000001" value="1"></td>
+            <td><input name="manual_line_unit_cost" class="num-input" type="number" step="0.0001" min="0" value="0"></td>
+            <td><button type="button" class="btn-secondary btn-small remove-manual-line">Remove</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="form-actions form-actions-right action-row" style="margin-top:16px;">
+      <button type="submit" class="btn-primary">Post Receipt</button>
+    </div>
+  </div>
+
+  <div class="card transaction-form-card" id="gr-lines-card">
+    <div class="card-header">
+      <div>
+        <h2>Receipt Lines</h2>
+        <div class="card-subtitle">Chọn một hoặc nhiều PO line thuộc cùng PO, điều chỉnh Receipt Qty nếu cần, rồi post GR.</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Receive</th>
+            <th>Line</th>
+            <th>Item</th>
+            <th>Warehouse</th>
+            <th>Base Unit</th>
+            <th>Order Unit</th>
+            <th>Ordered Qty</th>
+            <th>Received Qty</th>
+            <th>Open Qty</th>
+            <th>Receipt Qty (Order Unit)</th>
+            <th>Rate to Base</th>
+            <th>Unit Cost<br><span class="muted">Theo Order Unit</span></th>
+            <th>Goods-in-transit</th>
+          </tr>
+        </thead>
+        <tbody id="receipt-lines-body">
+          {% for p in open_po_lines %}
+          <tr data-po="{{ p.po_id }}" data-line="{{ p.id }}" style="display:none;">
+            <td>
+              <label class="inline-check">
+                <input type="checkbox" name="selected_po_line_ids" value="{{ p.id }}" class="gr-line-check" {% if selected_po_line_id==p.id %}checked{% endif %}>
+                <span>Select</span>
+              </label>
+            </td>
+            <td>{{ p.line_no }}</td>
+            <td><strong>{{ p.item_code }}</strong><br><span class="muted">{{ p.item_name }}</span></td>
+            <td>{{ p.warehouse_code }}</td>
+            <td>{{ p.base_uom or '' }}</td>
+            <td>{{ p.order_uom or p.base_uom or '' }}</td>
+            <td>{{ p.quantity|qty }}</td>
+            <td>{{ p.received_qty|qty }}</td>
+            <td>{{ p.open_qty|qty }}</td>
+            <td>
+              <input type="number" step="0.0001" min="0.0001" max="{{ p.open_qty }}" name="receipt_qty_{{ p.id }}" value="{{ p.open_qty }}" class="table-input gr-line-qty">
+            </td>
+            <td>{{ p.order_to_base_rate|qty }}</td>
+            <td>{{ p.unit_price|vnd }}</td>
+            <td>{{ 'Yes - clear 1519' if p.in_transit_posted else 'No - credit 331' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="13" class="empty-state">Không có PO line nào đang open.</td></tr>
+          {% endfor %}
+          <tr id="no-po-line-row"><td colspan="13" class="empty-state">Chọn PO Number để hiển thị các line còn open.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="form-actions form-actions-right" style="margin-top:16px;">
+      <button type="button" class="btn-secondary" id="select-all-open-lines">Select all lines</button>
+      <button type="button" class="btn-secondary" id="clear-selected-lines">Clear selection</button>
+      <button type="submit" class="btn-primary">Post Receipt</button>
+    </div>
+  </div>
+</form>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h2>Recent Goods Receipts</h2>
+      <div class="card-subtitle">Mỗi GR posted sẽ tạo inventory layer theo Base Unit; giá trị tồn kho = Base Quantity × Unit Cost.</div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>GR No</th><th>Date</th><th>PO No</th><th>Vendor</th><th>Status</th><th>Journal Entry</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for r in receipts %}
+        <tr>
+          <td><strong>{{ r.gr_no }}</strong></td>
+          <td>{{ r.gr_date }}</td>
+          <td>{{ r.po_no or '-' }}</td>
+          <td>{{ r.bp_code }} - {{ r.bp_name }}</td>
+          <td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td>
+          <td>{{ r.je_no or '-' }}</td>
+          <td class="action-cell">
+            <div class="row-actions">
+              {% if r.status == 'POSTED' %}
+              <form method="post" action="/purchase/receipt/{{ r.id }}/cancel" onsubmit="return window.erpConfirmSubmit(this, 'Huỷ Goods Receipt này? Hệ thống sẽ tạo bút toán đảo và đảo nhập kho nếu còn nguyên stock.', {title:'Cancel Goods Receipt', confirmText:'Cancel GR', cancelText:'Back', type:'warning'});">
+                <button type="submit" class="btn btn-danger btn-small">Cancel</button>
+              </form>
+              {% else %}
+                <span class="muted">-</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty-state">Chưa có Goods Receipt.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const form=document.getElementById('gr-form'),
+        mode=document.getElementById('receipt_mode'),
+        po=document.getElementById('po_id'),
+        vendor=document.getElementById('vendor_id'),
+        poField=document.getElementById('po-select-field'),
+        linesCard=document.getElementById('gr-lines-card'),
+        manualCard=document.getElementById('manual-line-card'),
+        wholeActions=document.getElementById('whole-po-actions'),
+        noPoLineRow=document.getElementById('no-po-line-row'),
+        manualBody=document.getElementById('manual-gr-lines-body'),
+        addManualBtn=document.getElementById('add-manual-gr-line'),
+        lineRows=Array.from(document.querySelectorAll('#receipt-lines-body tr[data-po]'));
+  const initialPo='{{ selected_po_id or 0 }}', initialLine='{{ selected_po_line_id or 0 }}';
+
+  function notify(sel){ sel?.dispatchEvent(new Event('change',{bubbles:true})); }
+  function refresh(scope){ if(window.refreshSearchableSelects) window.refreshSearchableSelects(scope || form); }
+  function init(scope){ if(window.initSearchableSelects) window.initSearchableSelects(scope || form); }
+  function cleanupEnhanced(row){
+    row.querySelectorAll('.searchable-combo').forEach(x=>x.remove());
+    row.querySelectorAll('select').forEach(sel=>{ delete sel.dataset.searchableReady; sel.style.display=''; });
+  }
+  function selectedPo(){ return po.value || '0'; }
+  function setVendorFromPO(){
+    const opt=po.selectedOptions[0];
+    if(opt && po.value && po.value !== '0'){
+      vendor.value=opt.dataset.vendor||'0';
+      notify(vendor);
+    }
+  }
+  function renumberManual(){
+    manualBody?.querySelectorAll('tr').forEach((tr,i)=>{ const n=tr.querySelector('.line-no'); if(n) n.textContent=i+1; });
+  }
+  function setManualUom(row, force){
+    const item=row?.querySelector('.line-item');
+    const base=row?.querySelector('.manual-base-uom');
+    const order=row?.querySelector('.manual-order-uom');
+    const rate=row?.querySelector('.manual-rate');
+    const baseUom=item?.selectedOptions?.[0]?.dataset.baseUom || '';
+    if(base) base.value=baseUom;
+    if(order && (force || !order.value)) { order.value=baseUom; notify(order); }
+    if(rate && (!rate.value || num(rate.value)<=0)) setNum(rate,'1');
+  }
+  function addManualLine(){
+    if(!manualBody) return;
+    const first=manualBody.querySelector('tr');
+    const clone=first.cloneNode(true);
+    cleanupEnhanced(clone);
+    clone.querySelectorAll('select').forEach(sel=>{ sel.selectedIndex=0; notify(sel); });
+    clone.querySelectorAll('input').forEach(inp=>{
+      if(inp.classList.contains('manual-base-uom')) inp.value='';
+      else if(inp.name && inp.name.includes('quantity')) inp.value='1';
+      else if(inp.name && inp.name.includes('rate')) inp.value='1';
+      else if(inp.name && inp.name.includes('unit_cost')) inp.value='0';
+      else inp.value='';
+    });
+    manualBody.appendChild(clone);
+    renumberManual();
+    init(clone);
+  }
+  function filterPoLines(){
+    const poId=selectedPo();
+    let visibleCount=0;
+    lineRows.forEach(row=>{
+      const isVisible = mode.value==='po_line' && poId!=='0' && row.dataset.po===poId;
+      row.style.display=isVisible?'':'none';
+      const chk=row.querySelector('.gr-line-check');
+      const qtyInput=row.querySelector('.gr-line-qty');
+      if(!isVisible && chk) chk.checked=false;
+      if(qtyInput) qtyInput.disabled=!isVisible;
+      if(isVisible) visibleCount++;
+    });
+    if(noPoLineRow) noPoLineRow.style.display=(mode.value==='po_line' && visibleCount===0)?'':'none';
+  }
+  function setVisibility(){
+    const isManual=mode.value==='manual';
+    const isWhole=mode.value==='po_all';
+    const isLine=mode.value==='po_line';
+    poField.style.display=isManual?'none':'';
+    linesCard.style.display=isLine?'':'none';
+    manualCard.style.display=isManual?'':'none';
+    wholeActions.style.display=isWhole?'':'none';
+    if(isManual){
+      po.value='0';
+      notify(po);
+      manualBody?.querySelectorAll('tr').forEach(row=>setManualUom(row,false));
+    } else {
+      setVendorFromPO();
+    }
+    filterPoLines();
+    refresh();
+  }
+  function chooseInitialLine(){
+    if(!initialLine || initialLine==='0') return;
+    const row=lineRows.find(r=>r.dataset.line===initialLine);
+    if(row){
+      mode.value='po_line';
+      po.value=row.dataset.po||'0';
+      notify(po);
+      const chk=row.querySelector('.gr-line-check');
+      if(chk) chk.checked=true;
+    }
+  }
+  document.getElementById('select-all-open-lines')?.addEventListener('click',()=>{
+    lineRows.forEach(row=>{
+      if(row.style.display!=='none'){
+        const chk=row.querySelector('.gr-line-check');
+        if(chk) chk.checked=true;
+      }
+    });
+  });
+  document.getElementById('clear-selected-lines')?.addEventListener('click',()=>{
+    lineRows.forEach(row=>{
+      const chk=row.querySelector('.gr-line-check');
+      if(chk) chk.checked=false;
+    });
+  });
+  addManualBtn?.addEventListener('click',addManualLine);
+  manualBody?.addEventListener('change',e=>{
+    const row=e.target.closest('tr');
+    if(!row) return;
+    if(e.target.classList.contains('line-item')) setManualUom(row,true);
+  });
+  manualBody?.addEventListener('click',e=>{
+    if(e.target.classList.contains('remove-manual-line')){
+      if(manualBody.querySelectorAll('tr').length > 1) e.target.closest('tr').remove();
+      renumberManual();
+    }
+  });
+  po.addEventListener('change',()=>{ setVendorFromPO(); filterPoLines(); refresh(); });
+  po.addEventListener('searchable:open',()=>refresh());
+  mode.addEventListener('change',setVisibility);
+  form.addEventListener('submit',e=>{
+    if(mode.value==='po_line'){
+      const checked=lineRows.some(row=>row.style.display!=='none' && row.querySelector('.gr-line-check')?.checked);
+      if(!checked){
+        e.preventDefault();
+        window.erpAlert('Please select at least one PO line to receipt.', {title:'Goods Receipt', type:'warning'});
+        return false;
+      }
+    }
+    if(mode.value==='po_all' && (!po.value || po.value==='0')){
+      e.preventDefault();
+      window.erpAlert('Please select a PO to receive.', {title:'Goods Receipt', type:'warning'});
+      return false;
+    }
+    if(mode.value==='manual'){
+      const vendorOk = vendor.value && vendor.value !== '0';
+      const validLine = Array.from(manualBody.querySelectorAll('tr')).some(row => {
+        const item = row.querySelector('[name="manual_line_item_id"]')?.value || '0';
+        const wh = row.querySelector('[name="manual_line_warehouse_id"]')?.value || '0';
+        const qty = num(row.querySelector('[name="manual_line_quantity"]')?.value || 0);
+        return item !== '0' && wh !== '0' && qty > 0;
+      });
+      if(!vendorOk || !validLine){
+        e.preventDefault();
+        window.erpAlert('Please select Vendor and at least one valid manual GR line.', {title:'Manual Goods Receipt', type:'warning'});
+        return false;
+      }
+    }
+  });
+  if(initialPo&&initialPo!=='0'){
+    po.value=initialPo;
+    notify(po);
+  }
+  chooseInitialLine();
+  renumberManual();
+  manualBody?.querySelectorAll('tr').forEach(row=>setManualUom(row,false));
+  setVisibility();
+})();
+</script>
+<script src="/static/transaction_guard.js?v=96"></script>
+{% endblock %}

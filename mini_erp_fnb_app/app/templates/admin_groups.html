@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Security</p>
+        <h1>User Groups & Permissions</h1>
+        <p class="page-desc">Quản lý quyền theo nhóm user. User có thể thuộc nhiều nhóm để cộng gộp quyền.</p>
+    </div>
+    <div class="page-actions"><a class="btn btn-secondary" href="/admin">← Back</a></div>
+</section>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Group</th><th>Name</th><th>Description</th><th class="num">Users</th><th class="num">Permissions</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td><span class="badge">{{ row.group_code }}</span></td>
+                    <td><strong>{{ row.group_name }}</strong></td>
+                    <td>{{ row.description or '-' }}</td>
+                    <td class="num">{{ row.user_count }}</td>
+                    <td class="num">{{ row.permission_count }}</td>
+                    <td>{% if row.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-inactive">Inactive</span>{% endif %}</td>
+                    <td class="action-cell"><div class="row-actions"><a class="btn btn-small btn-secondary" href="/admin/groups/{{ row.id }}/edit">Edit Permissions</a></div></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7" class="empty-state">Chưa có group.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Purchasing</p>
+    <h1>Release Purchase Requisition</h1>
+    <p class="page-desc">Kiểm tra PR trên màn hình giống Edit trước khi bấm Release. Sau khi release, PR sẽ chỉ được xem và không còn chỉnh sửa được.</p>
+  </div>
+  <a class="btn-secondary" href="/purchase/pr">Back</a>
+</section>
+
+{% if not doc %}
+<div class="card"><p class="empty-state">Không tìm thấy PR.</p></div>
+{% else %}
+<div class="card transaction-form-card">
+  <div class="card-header">
+    <div>
+      <h2>PR Header</h2>
+      <div class="card-subtitle">{{ doc.pr_no }}{% if doc.bp_code or doc.bp_name %} | {{ doc.bp_code or '' }} - {{ doc.bp_name or '' }}{% endif %}</div>
+    </div>
+    <span class="badge badge-{{ doc.status|lower }}">{{ doc.status }}</span>
+  </div>
+
+  <div class="erp-form-grid">
+    <div class="form-field"><label class="field-caption">PR No</label><div class="field-control"><input value="{{ doc.pr_no }}" readonly></div></div>
+    <div class="form-field"><label class="field-caption">PR Date</label><div class="field-control"><input type="date" value="{{ doc.pr_date }}" readonly></div></div>
+    <div class="form-field"><label class="field-caption">Vendor</label><div class="field-control"><input value="{{ (doc.bp_code or '') ~ ' - ' ~ (doc.bp_name or '') }}" readonly></div></div>
+    <div class="form-field"><label class="field-caption">Requested By</label><div class="field-control"><input value="{{ doc.requested_by_name or '' }}" readonly></div></div>
+    <div class="form-field form-span-2"><label class="field-caption">Notes</label><div class="field-control"><input value="{{ doc.notes or '' }}" readonly></div></div>
+  </div>
+
+  <div class="line-panel">
+    <div class="line-panel-header"><div><h2>PR Lines</h2><div class="card-subtitle">Thông tin chỉ xem trên màn hình release.</div></div></div>
+    <div class="table-wrap line-table-wrap">
+      <table class="entry-lines-table">
+        <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Base Unit</th><th>Order Unit</th><th>Qty</th><th>Rate</th><th>Expected Price</th><th>Line Amount</th><th>Tax Code</th><th>Required Date</th></tr></thead>
+        <tbody>
+          {% for l in lines %}
+          <tr><td>{{ l.line_no }}</td><td>{{ l.item_code }} - {{ l.item_name }}</td><td>{{ l.warehouse_code }} - {{ l.warehouse_name }}</td><td>{{ l.base_uom or l.item_base_uom or '-' }}</td><td>{{ l.order_uom or l.base_uom or l.item_base_uom or '-' }}</td><td>{{ l.quantity|qty }}</td><td>{{ l.order_to_base_rate|qty if l.order_to_base_rate else '1' }}</td><td>{{ l.expected_unit_price|vnd }}</td><td>{{ l.line_amount|vnd }}</td><td>{{ l.tax_code or '-' }}</td><td>{{ l.required_date or '-' }}</td></tr>
+          {% else %}<tr><td colspan="11" class="empty-state">PR chưa có line.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="transaction-bottom-bar">
+    <div class="bottom-left"><p class="page-desc">Release sẽ khóa PR và cho phép dùng PR này để tạo PO.</p></div>
+    <div class="bottom-right action-row">
+      <a class="btn-secondary" href="/purchase/pr/{{ doc.id }}/edit">{{ 'Edit PR' if doc.status == 'DRAFT' else 'View PR' }}</a>
+      {% if doc.status == 'DRAFT' %}
+      <form method="post" action="/purchase/pr/{{ doc.id }}/release" class="release-inline-form"><button type="submit" class="btn-success">Release PR</button></form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login - Mini ERP</title>
+    <link rel="stylesheet" href="/static/style.css?v=63">
+</head>
+<body>
+<div class="login-page">
+    <div class="card login-box">
+        <div class="login-logo">ERP</div>
+        <p class="eyebrow">Mini ERP</p>
+        <h1>Đăng nhập</h1>
+        <p class="page-desc">Quản lý mua hàng, bán hàng, tồn kho, sản xuất và kế toán tích hợp cho doanh nghiệp nhỏ.</p>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="post" action="/login">
+            <input type="hidden" name="next_url" value="{{ next_url or '' }}">
+            <label>Username <input name="username" autocomplete="username" placeholder="Nhập username" required></label>
+            <label>Password
+                <div class="password-field">
+                    <input id="loginPassword" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" required>
+                    <button type="button" class="password-toggle" aria-label="Hiển thị hoặc ẩn password" data-target="loginPassword" data-state="hidden">
+                        <span class="eye-icon eye-show" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z"></path>
+                                <circle cx="12" cy="12" r="2.7"></circle>
+                            </svg>
+                        </span>
+                        <span class="eye-icon eye-hide" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10.58 10.58a2 2 0 0 0 2.84 2.84"></path>
+                                <path d="M16.68 16.67A10.94 10.94 0 0 1 12 18c-6.4 0-10-6-10-6a18.7 18.7 0 0 1 5.05-5.77"></path>
+                                <path d="M19.5 14.5A18.6 18.6 0 0 0 22 12s-3.6-6-10-6a11.3 11.3 0 0 0-2.63.31"></path>
+                                <path d="M3 3l18 18"></path>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+            </label>
+            <button type="submit">Đăng nhập</button>
+        </form>
+        <div class="login-footer-actions">
+            <a href="/forgot-password">Quên mật khẩu?</a>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    document.querySelectorAll('.password-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const input = document.getElementById(btn.dataset.target);
+            if (!input) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            btn.dataset.state = isHidden ? 'shown' : 'hidden';
+        });
+    });
+})();
+</script>
+</body>
+</html>

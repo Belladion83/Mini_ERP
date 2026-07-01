@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "Mini ERP" }}</title>
+    <link rel="stylesheet" href="/static/style.css?v=99">
+</head>
+<body>
+{% set path = request.url.path %}
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">ERP</div>
+            <div>
+                <div class="brand-title">Mini ERP</div>
+                <div class="brand-subtitle">Operations · Inventory · Finance</div>
+            </div>
+        </div>
+
+        <div class="nav-section">Overview</div>
+        <nav class="nav-list">
+            <a class="nav-item {{ 'active' if path == '/' else '' }}" href="/"><span class="nav-icon">📊</span><span>Dashboard</span></a>
+        </nav>
+
+        <div class="nav-section">Core ERP</div>
+        <nav class="nav-list">
+            <a class="nav-item {{ 'active' if path.startswith('/masters') else '' }}" href="/masters"><span class="nav-icon">🧾</span><span>Master Data</span></a>
+            <a class="nav-item {{ 'active' if path.startswith('/purchase') else '' }}" href="/purchase"><span class="nav-icon">🛒</span><span>Mua hàng</span></a>
+            <a class="nav-item {{ 'active' if path.startswith('/sales') else '' }}" href="/sales"><span class="nav-icon">💵</span><span>Bán hàng</span></a>
+            <a class="nav-item {{ 'active' if path.startswith('/inventory') else '' }}" href="/inventory"><span class="nav-icon">📦</span><span>Tồn kho</span></a>
+            <a class="nav-item {{ 'active' if path.startswith('/production') else '' }}" href="/production"><span class="nav-icon">🏭</span><span>Sản xuất</span></a>
+            <a class="nav-item {{ 'active' if path.startswith('/accounting') else '' }}" href="/accounting"><span class="nav-icon">📒</span><span>Kế toán</span></a>
+        </nav>
+
+        <div class="nav-section">Automation</div>
+        <nav class="nav-list">
+            <a class="nav-item {{ 'active' if path.startswith('/integrations') else '' }}" href="/integrations"><span class="nav-icon">🔌</span><span>Integration</span></a>
+        </nav>
+
+        <div class="nav-section">Security</div>
+        <nav class="nav-list">
+            <a class="nav-item {{ 'active' if path.startswith('/admin') else '' }}" href="/admin"><span class="nav-icon">🔐</span><span>User Admin</span></a>
+        </nav>
+    </aside>
+
+    <section class="main-area">
+        <header class="topbar">
+            <div>
+                <div class="topbar-title">{{ page_title or title or "Mini ERP" }}</div>
+                <div class="topbar-meta">ERP mini cho doanh nghiệp nhỏ</div>
+            </div>
+            <div class="user-chip">
+                <div class="avatar">{{ (user.full_name or user.username or 'U')[:1] if user else 'U' }}</div>
+                <div>
+                    <div style="font-weight:800">{{ user.full_name if user else "Guest" }}</div>
+                    <div class="muted" style="font-size:12px">{{ user.username if user else "" }}</div>
+                </div>
+                <a class="logout" href="/logout">Logout</a>
+            </div>
+        </header>
+
+        <main class="container">
+            {% if request.query_params.get('success') %}
+                <div class="alert alert-success">{{ request.query_params.get('success') }}</div>
+            {% endif %}
+            {% if request.query_params.get('error') %}
+                <div class="alert alert-error">{{ request.query_params.get('error') }}</div>
+            {% endif %}
+            <script src="/static/erp_modal.js?v=99"></script>
+            <script src="/static/erp_number_format.js?v=99"></script>
+            {% block content %}{% endblock %}
+        </main>
+    </section>
+</div>
+
+<template id="erp-table-filter-template">
+    <div class="erp-modal-backdrop erp-table-filter-modal-backdrop" id="erp-table-filter-modal" hidden>
+      <div class="erp-modal-card erp-table-filter-card" role="dialog" aria-modal="true" aria-labelledby="erp-table-filter-title">
+        <div class="erp-modal-header">
+          <div><p class="eyebrow">Table Query</p><h2 id="erp-table-filter-title">Filter</h2></div>
+          <button type="button" class="erp-modal-close" data-table-filter-close aria-label="Close">×</button>
+        </div>
+        <div class="erp-modal-body">
+          <div class="table-filter-condition-grid" id="erp-table-filter-fields"></div>
+        </div>
+        <div class="erp-modal-actions">
+          <button type="button" class="btn-secondary btn-small" data-table-filter-clear>Clear Conditions</button>
+          <button type="button" class="btn-secondary btn-small" data-table-filter-close>Back</button>
+          <button type="button" class="btn-primary btn-small" data-table-filter-apply>Apply Filter</button>
+        </div>
+      </div>
+    </div>
+</template>
+
+<script src="/static/searchable_select.js?v=99"></script>
+<script src="/static/erp_tables.js?v=99"></script>
+<script src="/static/erp_doc_lock.js?v=99"></script>
+</body>
+</html>

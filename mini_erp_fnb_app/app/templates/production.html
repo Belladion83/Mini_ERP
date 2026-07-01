@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Production</p>
+        <h1>Sản xuất / Chế biến</h1>
+        <p class="page-desc">Chọn cách tạo lệnh sản xuất giống logic màn hình Mua hàng: tạo thủ công từ BOM hoặc tạo từ yêu cầu Sales Order khi Sales Check Availability không đủ hàng.</p>
+        <div class="workflow-strip"><span class="step-pill">Select Mode</span><span class="step-arrow">→</span><span class="step-pill">BOM / SO Request</span><span class="step-arrow">→</span><span class="step-pill">Production Order</span><span class="step-arrow">→</span><span class="step-pill">Finished Goods</span></div>
+    </div>
+</section>
+
+<div class="grid-cards production-mode-grid">
+    <a class="module-card production-mode-card" href="/production/manual">
+        <div class="module-icon">🧾</div>
+        <h3>Create Manual Production Order</h3>
+        <p>Tạo lệnh sản xuất thủ công từ BOM/Recipe. Dùng khi bộ phận sản xuất tự lập kế hoạch hoặc không phát sinh trực tiếp từ Sales Order.</p>
+        <span class="badge badge-info">Manual from BOM</span>
+    </a>
+    <a class="module-card production-mode-card" href="/production/so-requests">
+        <div class="module-icon">🛒</div>
+        <h3>Create Production Order from SO</h3>
+        <p>Xử lý các Sales Production Request được tạo khi Sales Check Availability thiếu hàng. Mỗi line chọn riêng Issue WH và Receipt WH.</p>
+        <span class="badge badge-running">Open Requests: {{ stats.open_requests or 0 }}</span>
+    </a>
+    <div class="module-card production-mode-card production-status-card">
+        <div class="module-icon">🏭</div>
+        <h3>Production Status</h3>
+        <p>Theo dõi nhanh số lệnh sản xuất đang hoạt động và lệnh tạo trong ngày.</p>
+        <span class="badge badge-released">Active: {{ stats.active_orders or 0 }}</span>
+        <span class="badge badge-posted">Today: {{ stats.today_orders or 0 }}</span>
+    </div>
+</div>
+
+<div class="two-col-grid">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h2>Open Sales Production Requests</h2>
+                <div class="card-subtitle">Yêu cầu sản xuất từ Sales chưa convert sang Production Order.</div>
+            </div>
+            <a class="btn-secondary" href="/production/so-requests">Process SO Requests</a>
+        </div>
+        <div class="table-wrap">
+            <table data-erp-table="true" data-erp-table-title="Open SO Production Requests">
+                <thead><tr><th>Request</th><th>Date</th><th>Item</th><th>Sales Request WH</th><th class="num">Qty</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for r in requests[:8] %}
+                <tr><td><strong>#{{ r.id }}</strong></td><td>{{ r.request_date }}</td><td>{{ r.item_code }} - {{ r.item_name }}</td><td>{{ r.warehouse_code }}</td><td class="num">{{ r.requested_qty|qty }}</td><td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td></tr>
+                {% else %}<tr><td colspan="6" class="empty-state">Không có Sales Production Request đang mở.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h2>Recent Production Orders</h2>
+                <div class="card-subtitle">10 lệnh sản xuất gần nhất.</div>
+            </div>
+            <a class="btn-secondary" href="/production/manual">Create Manual</a>
+        </div>
+        <div class="table-wrap">
+            <table data-erp-table="true" data-erp-table-title="Recent Production Orders">
+                <thead><tr><th>No</th><th>Date</th><th>Item</th><th class="num">Planned</th><th>Issue WH</th><th>Receipt WH</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for r in orders %}
+                <tr><td><strong>{{ r.prod_no }}</strong></td><td>{{ r.prod_date }}</td><td>{{ r.item_code }} - {{ r.item_name }}</td><td class="num">{{ r.planned_qty|qty }}</td><td>{{ r.issue_warehouse_code or '-' }}</td><td>{{ r.receipt_warehouse_code or '-' }}</td><td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td></tr>
+                {% else %}<tr><td colspan="7" class="empty-state">Chưa có Production Order.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Accounting</p>
+        <h1>Kế toán</h1>
+        <p class="page-desc">Theo dõi bút toán tự động phát sinh từ mua hàng, bán hàng, sản xuất, thanh toán và các nghiệp vụ tồn kho.</p>
+    </div>
+</section>
+
+<div class="stats-grid">
+    <a class="stat-card" href="/accounting/assets">
+        <div class="stat-label">Fixed Assets / Tools</div>
+        <div class="stat-value">{{ asset_summary.active_count|qty }}</div>
+        <div class="stat-help">NBV: {{ asset_summary.nbv|vnd }} · Cost: {{ asset_summary.cost|vnd }}</div>
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header"><div><h2>Inventory Valuation Policy</h2><div class="card-subtitle">Chọn phương pháp tính giá tồn kho theo VAS theo từng năm tài chính. Có thể đổi method cho năm mới mà không cần sửa dữ liệu năm cũ.</div></div></div>
+    <form method="post" action="/accounting/valuation-policy/save" class="erp-form-grid">
+        <div class="form-field">
+            <label class="field-caption">Fiscal Year</label>
+            <div class="field-control"><input type="number" name="fiscal_year" value="{{ today.year }}"></div>
+        </div>
+        <div class="form-field">
+            <label class="field-caption">Valuation Method</label>
+            <div class="field-control">
+                <select name="valuation_method">
+                    <option value="FIFO">FIFO</option>
+                    <option value="LIFO">LIFO</option>
+                    <option value="WEIGHTED_AVG">Weighted Average</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="field-caption">Effective From</label>
+            <div class="field-control"><input type="date" name="effective_from" value="{{ today.isoformat() }}"></div>
+        </div>
+        <div class="form-field form-span-2">
+            <label class="field-caption">Note</label>
+            <div class="field-control"><input type="text" name="note" placeholder="Ví dụ: Từ năm 2027 chuyển sang Bình quân gia quyền theo chính sách kế toán."></div>
+        </div>
+        <div class="form-field form-submit-field">
+            <div class="field-caption">&nbsp;</div>
+            <div class="field-control"><button type="submit" class="btn-primary">Save Valuation Policy</button></div>
+        </div>
+    </form>
+    <div class="table-wrap" style="margin-top:16px;">
+        <table>
+            <thead><tr><th>Year</th><th>Method</th><th>Effective From</th><th>Note</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for p in valuation_policies %}
+              <tr>
+                <td><strong>{{ p.fiscal_year }}</strong></td>
+                <td><span class="badge">{{ p.valuation_method }}</span></td>
+                <td>{{ p.effective_from }}</td>
+                <td>{{ p.note or '-' }}</td>
+                <td>{% if p.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-draft">Inactive</span>{% endif %}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="5" class="empty-state">Chưa có policy. Mặc định hệ thống dùng FIFO.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><div><h2>Trial Balance</h2><div class="card-subtitle">Số dư theo tài khoản từ posted journal entries.</div></div></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Account</th><th>Name</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+            <tbody>
+            {% for r in trial_balance %}<tr><td><strong>{{ r.account_code }}</strong></td><td>{{ r.account_name }}</td><td class="num">{{ r.total_debit|vnd }}</td><td class="num">{{ r.total_credit|vnd }}</td><td class="num">{{ r.ending_balance|vnd }}</td></tr>{% else %}<tr><td colspan="5" class="empty-state">Chưa có journal entry line.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><div><h2>Recent Journal Entries</h2><div class="card-subtitle">30 bút toán gần nhất.</div></div></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>JE No</th><th>Date</th><th>Source</th><th>Source ID</th><th>Memo</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for j in journals %}<tr><td><strong>{{ j.je_no }}</strong></td><td>{{ j.je_date }}</td><td><span class="badge">{{ j.source_doc_type }}</span></td><td>{{ j.source_doc_id }}</td><td>{{ j.memo }}</td><td><span class="badge badge-{{ j.status|lower }}">{{ j.status }}</span></td></tr>{% else %}<tr><td colspan="6" class="empty-state">Chưa có Journal Entry.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

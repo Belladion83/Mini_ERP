@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Accounting · Fixed Assets / Tools</p>
+        <h1>Tài sản cố định & Công cụ dụng cụ</h1>
+        <p class="page-desc">Theo dõi nguyên giá, khấu hao/phân bổ lũy kế, giá trị còn lại và post bút toán khấu hao/phân bổ định kỳ.</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-secondary" href="/accounting">← Accounting</a>
+        <a class="btn" href="/masters/fixed-assets">Maintain Assets</a>
+    </div>
+</section>
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2>Post khấu hao / phân bổ định kỳ</h2>
+            <div class="card-subtitle">Hệ thống tính theo đường thẳng dựa trên Asset Master và Asset Class. Mỗi kỳ chỉ cho post một lần để tránh trùng bút toán.</div>
+        </div>
+    </div>
+    <form method="post" action="/accounting/assets/depreciation-run" class="erp-form-grid">
+        <div class="form-field">
+            <label class="field-caption" for="period_year">Fiscal Year</label>
+            <div class="field-control"><input id="period_year" name="period_year" type="number" step="1" value="{{ today.year }}" required></div>
+        </div>
+        <div class="form-field">
+            <label class="field-caption" for="period_month">Period Month</label>
+            <div class="field-control"><input id="period_month" name="period_month" type="number" step="1" min="1" max="12" value="{{ today.month }}" required></div>
+        </div>
+        <div class="form-field">
+            <label class="field-caption" for="posting_date">Posting Date</label>
+            <div class="field-control"><input id="posting_date" name="posting_date" type="date" value="{{ today.isoformat() }}" required></div>
+        </div>
+        <div class="form-field">
+            <label class="field-caption" for="run_type">Run Type</label>
+            <div class="field-control">
+                <select id="run_type" name="run_type">
+                    <option value="MONTHLY_DEPRECIATION">Monthly Depreciation / Allocation</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-field full-span">
+            <label class="field-caption" for="memo">Memo</label>
+            <div class="field-control"><input id="memo" name="memo" type="text" placeholder="Khấu hao/phân bổ tài sản tháng ..."></div>
+        </div>
+        <div class="form-actions full-span">
+            <button type="submit">Post Depreciation / Allocation</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2>Asset Balance</h2>
+            <div class="card-subtitle">Giá trị tài sản theo master data và các run đã posted.</div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Asset</th><th>Name</th><th>Type</th><th>Class</th><th>Status</th>
+                    <th class="num">Cost</th><th class="num">Accum. Dep/Alloc</th><th class="num">NBV</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assets %}
+                <tr>
+                    <td><strong>{{ a.asset_code }}</strong></td>
+                    <td>{{ a.asset_name }}</td>
+                    <td><span class="badge">{{ a.asset_type }}</span></td>
+                    <td>{{ a.asset_class }}</td>
+                    <td><span class="badge badge-{{ a.asset_status|lower }}">{{ a.asset_status }}</span></td>
+                    <td class="num">{{ a.acquisition_cost|vnd }}</td>
+                    <td class="num">{{ a.accumulated_depreciation|vnd }}</td>
+                    <td class="num"><strong>{{ a.net_book_value|vnd }}</strong></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="empty-state">Chưa có Asset Master. Vào Master Data → Fixed Assets / Tools để tạo mới.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2>Recent Asset Runs</h2>
+            <div class="card-subtitle">Các lần post khấu hao/phân bổ gần nhất.</div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Run No</th><th>Period</th><th>Run Type</th><th>Posting Date</th><th>JE No</th><th class="num">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for r in runs %}
+                <tr>
+                    <td><strong>{{ r.run_no }}</strong></td>
+                    <td>{{ r.period_year }}-{{ "%02d"|format(r.period_month) }}</td>
+                    <td><span class="badge">{{ r.run_type }}</span></td>
+                    <td>{{ r.posting_date }}</td>
+                    <td>{{ r.je_no or '-' }}</td>
+                    <td class="num">{{ r.total_amount|vnd }}</td>
+                    <td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="empty-state">Chưa có asset depreciation/allocation run.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

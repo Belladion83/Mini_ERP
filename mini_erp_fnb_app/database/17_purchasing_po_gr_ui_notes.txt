@@ -1,0 +1,8 @@
+Migration note v26:
+- No SQL migration is required for this update.
+- This update changes purchasing UI/API/service behavior only:
+  1) Remove PR/PO selection instruction subtitles.
+  2) Keep Reference PR Header after Save PO.
+  3) Auto-fill PO line Unit Price from PR expected price or vendor price history.
+  4) Post GR: select PO first, then select PO line or receive whole PO.
+  5) Searchable combobox enhancement for form selects.

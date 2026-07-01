@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block content %}
+{% set view_mode = view_mode|default(false) %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Purchasing</p>
+    <h1>{{ 'View PO' if view_mode else 'Edit PO' if doc else 'New Purchase Order' }}</h1>
+    <p class="page-desc">PO hỗ trợ nhiều line. Chọn PR tại Header trước, sau đó các line sẽ tự lấy thông tin từ PR line tương ứng.</p>
+  </div>
+  <a class="btn-secondary dirty-link" href="/purchase/po">Back</a>
+</section>
+
+{% set is_editable = ((not doc) or doc.status == 'DRAFT') and not view_mode %}
+<div class="card transaction-form-card" data-dirty-guard="true" data-doc-locked="{{ 'true' if doc and not is_editable else 'false' }}">
+  <div class="card-header po-card-header">
+    <div>
+      <h2>PO Header</h2>
+      <div class="card-subtitle">PO Date default ngày hệ thống. Tax Code lấy từ PR, hoặc từ Item Master nếu tạo manual.</div>
+      {% if doc and view_mode %}<div class="locked-doc-note">View mode: chứng từ đang ở chế độ chỉ xem. Bấm Edit nếu cần chỉnh sửa các field được phép.</div>{% elif doc and not is_editable %}<div class="locked-doc-note">Chứng từ đã {{ doc.status }} nên toàn bộ Header và Line Item đang ở chế độ chỉ xem.</div>{% endif %}
+    </div>
+    {% if doc %}<span class="badge badge-{{ doc.status|lower }}">{{ doc.status }}</span>{% endif %}
+  </div>
+
+  <form method="post" action="/purchase/po/save" id="po-form">
+    <input type="hidden" name="po_id" value="{{ doc.id if doc else 0 }}">
+    <div class="erp-form-grid">
+      <div class="form-field">
+        <label class="field-caption">Manual PO No optional</label>
+        <div class="field-control"><input name="manual_po_no" value="{{ doc.po_no if doc else '' }}" {% if doc %}readonly{% endif %} placeholder="Để trống để tự động đánh số"></div>
+      </div>
+      <div class="form-field">
+        <label class="field-caption">PO Date</label>
+        <div class="field-control"><input type="date" name="po_date" value="{{ doc.po_date if doc else default_po_date }}" {% if not is_editable %}readonly{% endif %}></div>
+      </div>
+      <div class="form-field form-span-2">
+        <label class="field-caption">Reference PR Header</label>
+        <div class="field-control">
+          <select name="reference_pr_id" id="reference_pr_id" class="searchable-select" {% if not is_editable %}disabled{% endif %}>
+            <option value="0">-- Manual PO / No PR --</option>
+            {% set selected_pr_in_list = namespace(found=false) %}
+            {% for pr in released_prs %}
+              {% if selected_pr_id and selected_pr_id==pr.id %}{% set selected_pr_in_list.found = true %}{% endif %}
+            {% endfor %}
+            {% if selected_pr_id and selected_pr_doc and not selected_pr_in_list.found %}
+              <option value="{{ selected_pr_doc.id }}" data-vendor="{{ selected_pr_doc.vendor_id or 0 }}" selected>{{ selected_pr_doc.pr_no }} | {{ selected_pr_doc.bp_code or '' }} - {{ selected_pr_doc.bp_name or '' }}</option>
+            {% endif %}
+            {% for pr in released_prs %}
+              <option value="{{ pr.id }}" data-vendor="{{ pr.vendor_id or 0 }}" {% if selected_pr_id==pr.id %}selected{% endif %}>{{ pr.pr_no }} | {{ pr.bp_code or '' }} - {{ pr.bp_name or '' }} | Open lines: {{ pr.open_line_count }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-field form-span-2">
+        <label class="field-caption">Vendor</label>
+        <div class="field-control"><select name="vendor_id" id="vendor_id" class="searchable-select" required {% if not is_editable %}disabled{% endif %}>{% for v in vendors %}<option value="{{ v.id }}" {% if selected_vendor==v.id %}selected{% endif %}>{{ v.bp_code }} - {{ v.bp_name }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="form-field form-span-2">
+        <label class="field-caption">Notes</label>
+        <div class="field-control"><input name="notes" value="{{ doc.notes if doc else '' }}" {% if not is_editable %}readonly{% endif %}></div>
+      </div>
+    </div>
+
+    <div class="line-panel">
+      <div class="line-panel-header">
+        <div>
+          <h2>PO Lines</h2>
+          <div class="card-subtitle">Nếu chọn PR ở Header, hệ thống tự fill Item, Warehouse, Base Unit, Order Unit, Qty, tỷ lệ quy đổi, Unit Price và Tax Code từ PR. Nếu tạo PO manual, Unit Price là giá theo Order Unit và user có thể nhập tay hoặc lấy từ lịch sử giá.</div>
+        </div>
+        <div class="action-row">
+          {% if is_editable %}<button type="button" class="btn-secondary" id="get-po-price">Get Price</button>{% endif %}
+          {% if is_editable %}<button type="button" class="btn-secondary" id="add-po-line">+ Add Line</button>{% endif %}
+        </div>
+      </div>
+      <div class="table-wrap line-table-wrap">
+        <table class="entry-lines-table" id="po-lines-table">
+          <thead><tr><th>#</th><th>PR Line</th><th>Item</th><th>Warehouse</th><th>Base Unit</th><th>Order Unit</th><th>Qty (Order Unit)</th><th>Rate to Base</th><th>Unit Price</th><th>Line Amount</th><th>Tax Code</th><th>Received</th><th></th></tr></thead>
+          <tbody id="po-lines-body">
+            {% set existing_lines = lines if lines else [None] %}
+            {% for l in existing_lines %}
+            <tr class="entry-line-row">
+              <td class="line-no">{{ loop.index }}</td>
+              <td>
+                {% set selected_pr_line_id = l.pr_line_id if l and l.pr_line_id is defined and l.pr_line_id else (l.pr_line_id if l and l.pr_line_id else 0) %}
+                {% set selected_ns = namespace(found=false) %}
+                {% for pr in released_pr_lines %}
+                  {% if selected_pr_line_id and selected_pr_line_id == pr.id %}{% set selected_ns.found = true %}{% endif %}
+                {% endfor %}
+                <select name="line_pr_line_id" class="line-pr-ref searchable-select" {% if not is_editable %}disabled{% endif %}>
+                  <option value="0" data-pr="0">-- Manual PO / No PR Line --</option>
+                  {% if selected_pr_line_id and not selected_ns.found %}
+                    <option value="{{ selected_pr_line_id }}" data-pr="{{ doc.pr_id if doc else selected_pr_id or 0 }}" data-vendor="{{ selected_vendor }}" data-item="{{ l.item_id }}" data-warehouse="{{ l.warehouse_id }}" data-qty="{{ l.quantity }}" data-price="{{ l.unit_price if l and l.unit_price is defined else l.expected_unit_price if l and l.expected_unit_price is defined else 0 }}" data-tax="{{ l.tax_code_id or 0 }}" data-base-uom="{{ l.base_uom if l and l.base_uom else l.item_base_uom if l and l.item_base_uom else '' }}" data-order-uom="{{ l.order_uom if l and l.order_uom else l.base_uom if l and l.base_uom else l.item_base_uom if l and l.item_base_uom else '' }}" data-rate="{{ l.order_to_base_rate if l and l.order_to_base_rate else 1 }}" selected>Line {{ l.pr_line_no if l.pr_line_no is defined and l.pr_line_no else l.line_no }} | {{ l.item_code }} - {{ l.item_name if l.item_name is defined else '' }} | Qty {{ l.quantity|qty }}</option>
+                  {% endif %}
+                  {% for pr in released_pr_lines %}
+                    <option value="{{ pr.id }}" data-pr="{{ pr.pr_id }}" data-vendor="{{ pr.vendor_id or 0 }}" data-item="{{ pr.item_id }}" data-warehouse="{{ pr.warehouse_id }}" data-qty="{{ pr.quantity }}" data-price="{{ pr.expected_unit_price }}" data-tax="{{ pr.tax_code_id or 0 }}" data-base-uom="{{ pr.base_uom or '' }}" data-order-uom="{{ pr.order_uom or '' }}" data-rate="{{ pr.order_to_base_rate or 1 }}" {% if selected_pr_line_id and selected_pr_line_id == pr.id %}selected{% endif %}>Line {{ pr.line_no }} | {{ pr.item_code }} - {{ pr.item_name }} | Qty {{ pr.quantity|qty }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><select name="line_item_id" class="line-item searchable-select" required {% if not is_editable %}disabled{% endif %}>{% for i in items %}<option value="{{ i.id }}" data-input-tax="{{ i.input_tax_code_id or 0 }}" data-cost="{{ i.standard_cost or 0 }}" data-base-uom="{{ i.base_uom or '' }}" {% if l and l.item_id==i.id %}selected{% endif %}>{{ i.item_code }} - {{ i.item_name }}</option>{% endfor %}</select></td>
+              <td><select name="line_warehouse_id" class="searchable-select" required {% if not is_editable %}disabled{% endif %}>{% for w in warehouses %}<option value="{{ w.id }}" {% if l and l.warehouse_id==w.id %}selected{% endif %}>{{ w.warehouse_code }} - {{ w.warehouse_name }}</option>{% endfor %}</select></td>
+              <td><input class="uom-input line-base-uom" value="{{ l.base_uom if l and l.base_uom else l.item_base_uom if l and l.item_base_uom else '' }}" readonly></td>
+              <td>
+                <select class="uom-input line-order-uom searchable-select" name="line_order_uom" {% if not is_editable %}disabled{% endif %}>
+                  {% set selected_uom = l.order_uom if l and l.order_uom else l.base_uom if l and l.base_uom else l.item_base_uom if l and l.item_base_uom else '' %}
+                  <option value="">-- Unit --</option>
+                  {% for u in unit_options %}<option value="{{ u }}" {% if selected_uom == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                  {% if selected_uom and selected_uom not in unit_options %}<option value="{{ selected_uom }}" selected>{{ selected_uom }}</option>{% endif %}
+                </select>
+              </td>
+              <td><input class="num-input" name="line_quantity" type="number" step="0.0001" min="0.0001" required value="{{ l.quantity if l else '1' }}" {% if not is_editable %}readonly{% endif %}></td>
+              <td><input class="num-input line-rate" name="line_order_to_base_rate" type="number" step="0.000001" min="0.000001" value="{{ l.order_to_base_rate if l and l.order_to_base_rate else '1' }}" {% if not is_editable %}readonly{% endif %}></td>
+              <td><input class="num-input line-unit-price" name="line_unit_price" type="number" step="0.0001" min="0" required value="{{ l.unit_price if l and l.unit_price is defined and l.unit_price is not none else l.expected_unit_price if l and l.expected_unit_price is defined and l.expected_unit_price is not none else '0' }}" {% if not is_editable %}readonly{% endif %}></td>
+              <td class="num line-amount-cell">{{ l.line_amount|vnd if l and l.line_amount is defined and l.line_amount is not none else '0' }}</td>
+              <td><select name="line_tax_code_id" class="line-tax searchable-select" {% if not is_editable %}disabled{% endif %}><option value="0">-- None --</option>{% for t in tax_codes %}<option value="{{ t.id }}" {% if l and l.tax_code_id==t.id %}selected{% endif %}>{{ t.tax_code }} - {{ t.rate|qty }}%</option>{% endfor %}</select></td>
+              <td class="num received-cell">{{ l.received_qty|qty if l and l.received_qty is defined and l.received_qty is not none else '-' }}</td>
+              <td>{% if is_editable %}<button type="button" class="btn-secondary btn-small remove-line">Remove</button>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </form>
+
+  <div class="transaction-bottom-bar">
+    <div class="bottom-left">
+      {% if doc and doc.status == 'DRAFT' %}<p class="page-desc">Release PO sẽ mở màn hình kiểm tra riêng. Tùy chọn Dr 1519 / Cr 331 nằm trên màn hình Release.</p>{% endif %}
+    </div>
+    <div class="bottom-right action-row document-action-row">
+      <a class="btn-secondary dirty-link" href="/purchase/po">Back to Selection</a>
+      {% if view_mode and doc and doc.status == 'DRAFT' %}<a class="btn-primary" href="/purchase/po/{{ doc.id }}/edit">Edit</a>{% endif %}
+      {% if is_editable %}<button type="submit" form="po-form" class="btn-primary">💾 Save PO</button>{% endif %}
+      {% if doc and doc.status == 'DRAFT' %}<a class="btn-success dirty-link" href="/purchase/po/{{ doc.id }}/release">Release PO</a>{% endif %}
+      {% if doc and doc.status in ['RELEASED','PARTIALLY_RECEIVED'] %}<a class="btn-secondary dirty-link" href="/purchase/receipts?po_id={{ doc.id }}">Receive</a>{% endif %}
+      {% if doc and doc.status in ['DRAFT','RELEASED'] %}<button type="submit" class="btn-danger" form="po-cancel-form">Cancel PO</button>{% endif %}
+    </div>
+  </div>
+  {% if doc and doc.status in ['DRAFT','RELEASED'] %}
+  <form id="po-cancel-form" method="post" action="/purchase/po/{{ doc.id }}/cancel" onsubmit="return window.erpConfirmSubmit(this, 'Huỷ PO này? Nếu đã post GIT, hệ thống sẽ tạo bút toán đảo.', {title:'Cancel Purchase Order', confirmText:'Cancel PO', cancelText:'Back', type:'warning'});">
+    <input type="hidden" name="reason" value="Cancelled from transaction screen">
+  </form>
+  {% endif %}
+</div>
+
+<div class="card"><h2>Ghi chú nghiệp vụ</h2><p class="page-desc">Nếu chọn <strong>Post goods-in-transit</strong> trên màn hình Release, hệ thống ghi nhận <strong>Nợ 1519 / Có 331</strong>. Khi Post Goods Receipt từ PO, hệ thống tự clear <strong>Có 1519</strong> sang tài khoản tồn kho của từng item.</p></div>
+<script>
+(function(){
+  const isNew = {{ 'true' if not doc else 'false' }};
+  const vendor=document.getElementById('vendor_id'),body=document.getElementById('po-lines-body'),addBtn=document.getElementById('add-po-line'),prHeader=document.getElementById('reference_pr_id'), getPriceBtn=document.getElementById('get-po-price');
+  const releasedPrLines = {{ released_pr_lines_json|tojson }};
+  function notifySelect(sel){ sel?.dispatchEvent(new Event('change', {bubbles:true})); }
+  function cleanupEnhanced(row){ row.querySelectorAll('.searchable-combo').forEach(x=>x.remove()); row.querySelectorAll('select').forEach(sel=>{delete sel.dataset.searchableReady; sel.style.display='';}); }
+  function renumber(){body.querySelectorAll('tr').forEach((tr,i)=>tr.querySelector('.line-no').textContent=i+1)}
+  function money(n){return window.erpFormatNumber?window.erpFormatNumber(n,{maximumFractionDigits:4}):String(n||'0')}
+  function num(v){return window.erpParseNumber?window.erpParseNumber(v):Number(v||0)}
+  function setNum(input,value){if(window.erpSetNumberInput)window.erpSetNumberInput(input,value);else if(input)input.value=value}
+  function calculateLineAmount(row){const qty=num(row?.querySelector('[name="line_quantity"]')?.value||0), price=num(row?.querySelector('[name="line_unit_price"]')?.value||0); const cell=row?.querySelector('.line-amount-cell'); if(cell) cell.textContent=money(qty*price);}
+  async function fetchItemDefaults(itemId, orderUom){if(!itemId||itemId==='0')return null; const data=await fetch(`/purchase/item-purchase-defaults?item_id=${encodeURIComponent(itemId)}&order_uom=${encodeURIComponent(orderUom||'')}`).then(r=>r.json()); return data&&data.ok?data:null;}
+  async function applyItemDefaults(row, resetOrderUnit){const item=row?.querySelector('.line-item'), base=row?.querySelector('.line-base-uom'), order=row?.querySelector('.line-order-uom'), rate=row?.querySelector('.line-rate'); if(!item||!item.value)return; const selectedBase=item.selectedOptions[0]?.dataset.baseUom||''; if(base)base.value=selectedBase; const requestedOrderUom=resetOrderUnit?'':(order?.value||selectedBase); try{const data=await fetchItemDefaults(item.value, requestedOrderUom); if(data){if(base)base.value=data.base_uom||selectedBase; if(order&&(!order.value||resetOrderUnit)){order.value=data.order_uom||selectedBase; if(window.refreshSearchableSelects)window.refreshSearchableSelects(row);} if(rate)setNum(rate,data.order_to_base_rate||'1'); const tax=row?.querySelector('.line-tax'); if(tax&&data.input_tax_code_id&&String(data.input_tax_code_id)!=='0'&&(!tax.value||tax.value==='0')){tax.value=String(data.input_tax_code_id); notifySelect(tax);}}}catch(err){} calculateLineAmount(row);}
+  function defaultTax(row){const item=row?.querySelector('.line-item'),tax=row?.querySelector('.line-tax'),taxId=item?.selectedOptions[0]?.dataset.inputTax||'0';if(tax&&taxId&&taxId!=='0'){tax.value=taxId; notifySelect(tax)}}
+  function defaultUom(row, force){applyItemDefaults(row, force);}
+  function filterPrLines(){
+    const selectedPr=prHeader?.value||'0';
+    if(prHeader){const opt=prHeader.selectedOptions[0];if(opt?.dataset.vendor&&opt.dataset.vendor!=='0'&&vendor){vendor.value=opt.dataset.vendor; notifySelect(vendor);}}
+    body.querySelectorAll('.line-pr-ref').forEach(sel=>{
+      Array.from(sel.options).forEach(opt=>{const pr=opt.dataset.pr||'0';opt.hidden = !(pr==='0'||pr===selectedPr||opt.selected);});
+      if(sel.selectedOptions[0]?.hidden){sel.value='0'; notifySelect(sel)}
+    });
+    if(window.refreshSearchableSelects) window.refreshSearchableSelects(body);
+  }
+  function fillFromPR(row){const ref=row.querySelector('.line-pr-ref'),opt=ref.selectedOptions[0];if(!opt||!ref.value||ref.value==='0'){defaultTax(row);defaultUom(row,true);return}if(opt.dataset.vendor&&opt.dataset.vendor!=='0'&&vendor){vendor.value=opt.dataset.vendor; notifySelect(vendor)};row.querySelector('.line-item').value=opt.dataset.item||row.querySelector('.line-item').value;notifySelect(row.querySelector('.line-item'));row.querySelector('[name="line_warehouse_id"]').value=opt.dataset.warehouse||row.querySelector('[name="line_warehouse_id"]').value;notifySelect(row.querySelector('[name="line_warehouse_id"]'));setNum(row.querySelector('[name="line_quantity"]'), opt.dataset.qty||'1');row.querySelector('.line-base-uom').value=opt.dataset.baseUom||'';row.querySelector('[name="line_order_uom"]').value=opt.dataset.orderUom||opt.dataset.baseUom||'';notifySelect(row.querySelector('[name="line_order_uom"]'));setNum(row.querySelector('[name="line_order_to_base_rate"]'), opt.dataset.rate||'1');setNum(row.querySelector('[name="line_unit_price"]'), opt.dataset.price||'0');if(opt.dataset.tax&&opt.dataset.tax!=='0'){row.querySelector('.line-tax').value=opt.dataset.tax; notifySelect(row.querySelector('.line-tax'));}else defaultTax(row); calculateLineAmount(row); if(window.refreshSearchableSelects) window.refreshSearchableSelects(row)}
+  function buildRowFromPrLine(line, idx){
+    const base = body.querySelector('tr');
+    const row = base.cloneNode(true); cleanupEnhanced(row);
+    row.querySelector('.line-no').textContent=idx+1;
+    row.querySelector('.line-pr-ref').value=String(line.id); notifySelect(row.querySelector('.line-pr-ref'));
+    row.querySelector('.line-item').value=String(line.item_id); notifySelect(row.querySelector('.line-item'));
+    row.querySelector('[name="line_warehouse_id"]').value=String(line.warehouse_id); notifySelect(row.querySelector('[name="line_warehouse_id"]'));
+    setNum(row.querySelector('[name="line_quantity"]'), line.quantity||'1');
+    row.querySelector('.line-base-uom').value=line.base_uom||'';
+    row.querySelector('[name="line_order_uom"]').value=line.order_uom||line.base_uom||''; notifySelect(row.querySelector('[name="line_order_uom"]'));
+    setNum(row.querySelector('[name="line_order_to_base_rate"]'), line.order_to_base_rate||'1');
+    setNum(row.querySelector('[name="line_unit_price"]'), line.expected_unit_price||'0');
+    if(line.tax_code_id){row.querySelector('.line-tax').value=String(line.tax_code_id); notifySelect(row.querySelector('.line-tax'));} else defaultTax(row);
+    row.querySelector('.received-cell').textContent='-';
+    calculateLineAmount(row);
+    return row;
+  }
+  function applyPrHeaderLines(){
+    const selectedPr = prHeader?.value || '0';
+    if(!selectedPr || selectedPr==='0'){ filterPrLines(); return; }
+    const rows = releasedPrLines.filter(x=>String(x.pr_id)===String(selectedPr));
+    if(isNew && rows.length){
+      body.innerHTML=''; rows.forEach((line,idx)=>body.appendChild(buildRowFromPrLine(line,idx))); renumber();
+      if(window.initSearchableSelects) window.initSearchableSelects(body);
+    }
+    filterPrLines(); body.querySelectorAll('tr').forEach(row=>{ if(row.querySelector('.line-pr-ref').value!=='0') fillFromPR(row); });
+  }
+  async function getPriceForRow(row){
+    const ref=row.querySelector('.line-pr-ref'), selected=ref?.selectedOptions[0];
+    if(selected && ref.value && ref.value!=='0' && selected.dataset.price){ setNum(row.querySelector('[name="line_unit_price"]'), selected.dataset.price); calculateLineAmount(row); return; }
+    const itemId=row.querySelector('.line-item')?.value||'0', vendorId=vendor?.value||'0';
+    if(!itemId || itemId==='0' || !vendorId || vendorId==='0') return;
+    const orderUom=row.querySelector('.line-order-uom')?.value||'';
+    const rate=row.querySelector('.line-rate')?.value||'1';
+    const res=await fetch(`/purchase/po/price-history?vendor_id=${encodeURIComponent(vendorId)}&item_id=${encodeURIComponent(itemId)}&order_uom=${encodeURIComponent(orderUom)}&order_to_base_rate=${encodeURIComponent(rate)}`);
+    const data=await res.json();
+    if(data.latest_price){ setNum(row.querySelector('[name="line_unit_price"]'), data.latest_price); calculateLineAmount(row); }
+  }
+  if(body){
+    body.addEventListener('change',e=>{const row=e.target.closest('tr');if(!row)return;if(e.target.classList.contains('line-pr-ref'))fillFromPR(row);if(e.target.classList.contains('line-item')){defaultTax(row);defaultUom(row,true)}if(e.target.classList.contains('line-order-uom'))defaultUom(row,false);if(e.target.classList.contains('line-rate')||e.target.classList.contains('line-unit-price')||e.target.name==='line_quantity')calculateLineAmount(row);});
+    body.addEventListener('input',e=>{const row=e.target.closest('tr');if(!row)return;if(e.target.classList.contains('line-rate')||e.target.classList.contains('line-unit-price')||e.target.name==='line_quantity')calculateLineAmount(row);});
+    body.addEventListener('click',e=>{if(e.target.classList.contains('remove-line')){if(body.querySelectorAll('tr').length>1)e.target.closest('tr').remove();renumber()}});
+  }
+  if(addBtn)addBtn.addEventListener('click',()=>{const clone=body.querySelector('tr').cloneNode(true); cleanupEnhanced(clone); clone.querySelectorAll('input').forEach(inp=>{if(inp.type==='number')inp.value=(inp.name.includes('quantity')||inp.name.includes('rate'))?'1':'0';else inp.value=''});clone.querySelectorAll('select').forEach(sel=>{sel.selectedIndex=0; notifySelect(sel)});const amt=clone.querySelector('.line-amount-cell'); if(amt) amt.textContent='0'; const rec=clone.querySelector('.received-cell'); if(rec) rec.textContent='-'; body.appendChild(clone);renumber();filterPrLines();defaultTax(clone);defaultUom(clone,true); if(window.initSearchableSelects) window.initSearchableSelects(clone)});
+  if(prHeader){prHeader.addEventListener('change',applyPrHeaderLines);prHeader.addEventListener('searchable:open',()=>{filterPrLines(); if(window.refreshSearchableSelects) window.refreshSearchableSelects(document.getElementById('po-form'));});}
+  body?.addEventListener('searchable:open', e=>{ if(e.target && e.target.classList && e.target.classList.contains('line-pr-ref')) filterPrLines(); });
+  if(getPriceBtn)getPriceBtn.addEventListener('click',async()=>{for(const row of body.querySelectorAll('tr')) await getPriceForRow(row);});
+  body?.querySelectorAll('tr').forEach(row=>{defaultTax(row);defaultUom(row,false);calculateLineAmount(row)});filterPrLines();
+})();
+</script><script src="/static/transaction_guard.js?v=96"></script>
+{% endblock %}

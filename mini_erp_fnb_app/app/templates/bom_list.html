@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Master Data</p>
+        <h1>{{ config.title }}</h1>
+        <p class="page-desc">{{ config.subtitle }}</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-secondary" href="/masters">← Back</a>
+        <a class="btn" href="/masters/boms/new">+ New BOM</a>
+    </div>
+</section>
+
+<div class="master-tabs">
+    {% for ent, cfg in entities.items() %}
+        <a class="master-tab {{ 'active' if ent == entity else '' }}" href="/masters/{{ ent }}">{{ cfg.icon }} {{ cfg.title }}</a>
+    {% endfor %}
+</div>
+
+{% include "partials/master_selection_screen.html" %}
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2>BOM / Recipe List</h2>
+            <div class="card-subtitle">Quản lý công thức nguyên vật liệu cho Finished Good. Bấm trực tiếp vào BOM Code để maintain.</div>
+        </div>
+        <span class="badge">{{ rows|length }} records</span>
+    </div>
+    <div class="table-wrap">
+        <table data-erp-table="true" data-erp-table-title="BOM / Recipe List" data-use-advanced-filter="true">
+            <thead>
+                <tr>
+                    <th>BOM Code</th>
+                    <th>Finished Good</th>
+                    <th>Version</th>
+                    <th class="num">Base Qty</th>
+                    <th class="num">Components</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td><strong><a class="erp-doc-link erp-master-link" href="/masters/boms/{{ row.id }}" title="View BOM {{ row.bom_code }}">{{ row.bom_code }}</a></strong></td>
+                    <td>
+                        <strong>{{ row.finished_item_code }}</strong><br>
+                        <span class="muted">{{ row.finished_item_name }}</span>
+                    </td>
+                    <td><span class="badge">{{ row.version_no }}</span></td>
+                    <td class="num">{{ row.base_qty|qty }}</td>
+                    <td class="num">{{ row.component_count }}</td>
+                    <td>{% if row.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-inactive">Inactive</span>{% endif %}</td>
+                    <td class="action-cell">
+                        <div class="row-actions">
+                            <a class="btn btn-small btn-secondary" href="/masters/boms/{{ row.id }}/edit">Edit</a>
+                            <a class="btn btn-small btn-secondary" href="/masters/boms/{{ row.id }}/copy">Copy</a>
+                            <form method="post" action="/masters/boms/{{ row.id }}/toggle" onsubmit="return window.erpConfirmSubmit(this, 'Bạn muốn đổi trạng thái Active/Inactive của BOM này?', {title:'Confirm status change', confirmText:'Confirm', cancelText:'Cancel'});">
+                                <button class="btn btn-small {{ 'btn-danger' if row.is_active else 'btn-secondary' }}" type="submit">{{ 'Deactivate' if row.is_active else 'Activate' }}</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7" class="empty-state">Chưa có BOM. Bấm New BOM để tạo công thức cho Finished Good.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function () {
+    const input = document.getElementById('master-search-input');
+    const box = document.getElementById('master-search-suggestions');
+    if (!input || !box) return;
+
+    let timer = null;
+    let lastQuery = '';
+
+    function hideBox() {
+        box.hidden = true;
+        box.innerHTML = '';
+    }
+
+    function renderSuggestions(items) {
+        if (!items || items.length === 0) {
+            hideBox();
+            return;
+        }
+        box.innerHTML = items.map(item => `
+            <button type="button" class="suggestion-item" data-value="${String(item.value).replace(/"/g, '&quot;')}">
+                ${item.label}
+            </button>
+        `).join('');
+        box.hidden = false;
+    }
+
+    input.addEventListener('input', function () {
+        const q = input.value.trim();
+        if (timer) window.clearTimeout(timer);
+        if (q.length < 1) {
+            hideBox();
+            return;
+        }
+        timer = window.setTimeout(async function () {
+            if (q === lastQuery) return;
+            lastQuery = q;
+            try {
+                const res = await fetch(`/masters/boms/suggestions?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                renderSuggestions(data.items || []);
+            } catch (e) {
+                hideBox();
+            }
+        }, 220);
+    });
+
+    box.addEventListener('click', function (e) {
+        const btn = e.target.closest('.suggestion-item');
+        if (!btn) return;
+        input.value = btn.dataset.value;
+        hideBox();
+        input.form.submit();
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!box.contains(e.target) && e.target !== input) hideBox();
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">ERP Overview</p>
+        <h1>Dashboard vận hành</h1>
+        <p class="page-desc">Theo dõi nhanh dữ liệu chính: doanh số hôm nay, giá trị tồn kho, chứng từ phát sinh và tình trạng sản xuất.</p>
+    </div>
+    <a class="btn btn-secondary" href="/sales">+ Tạo bán hàng nhanh</a>
+</section>
+
+<div class="card-grid">
+    <div class="metric-card"><div class="metric-label">Doanh số hôm nay</div><div class="metric-value">{{ cards['sales_today']|vnd }}</div><div class="metric-hint">{{ cards['orders_today'] }} đơn bán hàng</div></div>
+    <div class="metric-card"><div class="metric-label">Giá trị tồn kho</div><div class="metric-value">{{ cards['inventory_value']|vnd }}</div><div class="metric-hint">Theo inventory movements</div></div>
+    <div class="metric-card"><div class="metric-label">Mặt hàng</div><div class="metric-value">{{ cards['items'] }}</div><div class="metric-hint">Item master active</div></div>
+    <div class="metric-card"><div class="metric-label">Khách hàng</div><div class="metric-value">{{ cards['customers'] }}</div><div class="metric-hint">Customer / Both BP</div></div>
+    <div class="metric-card"><div class="metric-label">Nhà cung cấp</div><div class="metric-value">{{ cards['vendors'] }}</div><div class="metric-hint">Vendor / Both BP</div></div>
+    <div class="metric-card"><div class="metric-label">Lệnh sản xuất mở</div><div class="metric-value">{{ cards['production_open'] }}</div><div class="metric-hint">Chưa closed/cancelled</div></div>
+</div>
+
+<div class="module-grid">
+    <a class="module-card" href="/purchase"><div class="module-icon">🛒</div><h3>Mua hàng</h3><p>Nhập hàng nhanh, tăng tồn kho và chuẩn bị dữ liệu cho AP/công nợ NCC.</p></a>
+    <a class="module-card" href="/sales"><div class="module-icon">💵</div><h3>Bán hàng</h3><p>Tạo sale nhanh, xuất kho, ghi nhận doanh thu và giá vốn.</p></a>
+    <a class="module-card" href="/inventory"><div class="module-icon">📦</div><h3>Tồn kho</h3><p>Theo dõi stock balance, stock card, giá trị tồn kho và lịch sử movement.</p></a>
+    <a class="module-card" href="/production"><div class="module-icon">🏭</div><h3>Sản xuất</h3><p>Tạo production order từ BOM/recipe để quản lý chế biến.</p></a>
+</div>
+
+<div class="card" style="margin-top:18px">
+    <div class="card-header">
+        <div>
+            <h2>Chứng từ gần đây</h2>
+            <div class="card-subtitle">Tổng hợp nhanh từ sales, purchase, production và accounting.</div>
+        </div>
+        <span class="badge">{{ cards['journal_entries'] }} journal entries</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Loại chứng từ</th><th>Số chứng từ</th><th>Ngày</th><th>Trạng thái</th><th class="num">Amount / Qty</th></tr></thead>
+            <tbody>
+            {% for d in recent_docs %}
+                <tr>
+                    <td>{{ d.doc_type }}</td>
+                    <td><strong>{{ d.doc_no }}</strong></td>
+                    <td>{{ d.doc_date }}</td>
+                    <td><span class="badge badge-{{ d.status|lower }}">{{ d.status }}</span></td>
+                    <td class="num">{{ d.amount|vnd }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5" class="empty-state">Chưa có chứng từ phát sinh.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

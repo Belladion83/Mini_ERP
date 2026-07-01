@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Security</p>
+        <h1>User & Permission Admin</h1>
+        <p class="page-desc">Quản lý user, user group và phân quyền sử dụng theo từng module ERP. Chỉ user có quyền USER_ADMIN mới truy cập được khu vực này.</p>
+    </div>
+</section>
+
+<div class="card-grid">
+    <div class="metric-card"><div class="metric-label">Users</div><div class="metric-value">{{ user_count }}</div><div class="metric-hint">Tài khoản đăng nhập hệ thống</div></div>
+    <div class="metric-card"><div class="metric-label">User Groups</div><div class="metric-value">{{ group_count }}</div><div class="metric-hint">Nhóm phân quyền</div></div>
+    <div class="metric-card"><div class="metric-label">Permissions</div><div class="metric-value">{{ permission_count }}</div><div class="metric-hint">Mã quyền theo module</div></div>
+</div>
+
+<div class="module-grid">
+    <a class="module-card" href="/admin/users">
+        <div class="module-icon">👤</div>
+        <h3>User Master Data</h3>
+        <p>Tạo mới, chỉnh sửa, active/inactive user và gán user vào group.</p>
+    </a>
+    <a class="module-card" href="/admin/groups">
+        <div class="module-icon">🔐</div>
+        <h3>User Groups & Permissions</h3>
+        <p>Maintain quyền sử dụng module cho từng group: Master Data, Purchase, Sales, Inventory, Production, Accounting...</p>
+    </a>
+</div>
+{% endblock %}

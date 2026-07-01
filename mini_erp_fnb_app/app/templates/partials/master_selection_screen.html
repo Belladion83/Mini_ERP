@@ -1,0 +1,49 @@
+<div class="card selection-screen-card master-selection-screen-card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Master Data · Selection Screen</p>
+      <h2>Selection Criteria</h2>
+      <div class="card-subtitle">Nhập điều kiện lọc rồi bấm Execute. Bấm trực tiếp vào mã master data trong Result List để maintain.</div>
+    </div>
+    <a class="btn-primary" href="/masters/{{ entity }}/new">+ New {{ config.title }}</a>
+  </div>
+  <form method="get" action="/masters/{{ entity }}" class="selection-grid master-selection-grid">
+    <div class="form-field">
+      <label class="field-caption">{{ config.list_columns[0][1] if config.list_columns else 'Code' }} From</label>
+      <div class="field-control"><input name="code_from" value="{{ filters.code_from if filters is defined else '' }}" placeholder="From code"></div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">{{ config.list_columns[0][1] if config.list_columns else 'Code' }} To</label>
+      <div class="field-control"><input name="code_to" value="{{ filters.code_to if filters is defined else '' }}" placeholder="To code"></div>
+    </div>
+    <div class="form-field form-span-2">
+      <label class="field-caption">Search Text Contains</label>
+      <div class="field-control master-search-wrap">
+        <input id="master-search-input"
+               type="text"
+               name="q"
+               value="{{ filters.q if filters is defined else q }}"
+               autocomplete="off"
+               data-entity="{{ entity }}"
+               placeholder="Code, name, type, category...">
+        <div id="master-search-suggestions" class="suggestion-box" hidden></div>
+      </div>
+    </div>
+    <div class="form-field">
+      <label class="field-caption">Status</label>
+      <div class="field-control">
+        <select name="active_status" class="searchable-select">
+          <option value="ACTIVE" {% if filters is defined and filters.active_status == 'ACTIVE' %}selected{% endif %}>Active only</option>
+          <option value="INACTIVE" {% if filters is defined and filters.active_status == 'INACTIVE' %}selected{% endif %}>Inactive only</option>
+          <option value="ALL" {% if filters is defined and filters.active_status == 'ALL' %}selected{% endif %}>All statuses</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-field selection-actions-field no-caption">
+      <div class="field-control action-row">
+        <button type="submit" class="btn-primary">Execute</button>
+        <a class="btn-secondary" href="/masters/{{ entity }}">Clear</a>
+      </div>
+    </div>
+  </form>
+</div>

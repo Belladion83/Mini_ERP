@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+{% block content %}
+{% set is_edit = row.get(config.pk) is not none %}
+{% set view_mode = view_mode|default(false) %}
+
+{% macro render_field(field) %}
+    {% set value = row.get(field.name) %}
+    {% set is_code_field = config.code_field is defined and config.code_field and field.name == config.code_field %}
+    {% set field_locked = view_mode or (is_edit and is_code_field) %}
+    <div class="form-field {{ 'full-span' if field.type == 'textarea' else '' }} {{ 'checkbox-field' if field.type == 'checkbox' else '' }}">
+        {% if field.type == 'checkbox' %}
+            <div class="field-caption">{{ field.label }}</div>
+            <label class="switch-row field-control">
+                <input type="checkbox" name="{{ field.name }}" {% if value %}checked{% endif %} {% if field_locked %}disabled{% endif %}>
+                <span class="muted">Enabled</span>
+            </label>
+            {% if field.help_text %}<div class="help-text">{{ field.help_text }}</div>{% endif %}
+        {% else %}
+            <label class="field-caption" for="{{ field.name }}">
+                {{ field.label }} {% if field.required %}<span class="required">*</span>{% endif %}
+            </label>
+            <div class="field-control">
+                {% if master_numbering and field.name == master_numbering.code_field and not is_edit and not view_mode %}
+                    <div class="code-input-row">
+                {% endif %}
+                {% if field.type == 'select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %} {% if field.required %}required{% endif %}>
+                        <option value="">-- Select --</option>
+                        {% for opt in field.options %}
+                            <option value="{{ opt }}" {% if value|string == opt|string %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'uom_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" class="searchable-select" {% if field_locked %}disabled{% endif %} {% if field.required %}required{% endif %}>
+                        <option value="">-- Select Unit --</option>
+                        {% for u in unit_options %}
+                            <option value="{{ u }}" {% if value|string == u|string %}selected{% endif %}>{{ u }}</option>
+                        {% endfor %}
+                        {% if value and value not in unit_options %}<option value="{{ value }}" selected>{{ value }}</option>{% endif %}
+                    </select>
+                {% elif field.type == 'account_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in account_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'coa_node_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in coa_node_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'bp_customer_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in customer_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'warehouse_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in warehouse_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'tax_code_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in tax_code_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'input_tax_code_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in input_tax_code_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'output_tax_code_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in output_tax_code_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'sale_channel_multi' %}
+                    <select id="{{ field.name }}"
+                            name="{{ field.name }}"
+                            multiple
+                            class="multi-select-box sale-channel-native-select"
+                            data-sale-channel-select="true"
+                            aria-hidden="true"
+                            {% if field_locked %}disabled{% endif %}>
+                        {% for opt_value, opt_label in sale_channel_options %}
+                            <option value="{{ opt_value }}" {% if value and (opt_value|int) in value %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="sale-channel-picker" data-sale-channel-picker-for="{{ field.name }}">
+                        <div class="sale-channel-picker-main">
+                            <button type="button" class="sale-channel-picker-display" data-sale-channel-toggle>
+                                <span class="sale-channel-picker-text" data-sale-channel-summary>-- Select Sale Channels --</span>
+                            </button>
+                        </div>
+                        <div class="sale-channel-chip-list" data-sale-channel-chips></div>
+                        <div class="sale-channel-modal-backdrop" data-sale-channel-backdrop hidden></div>
+                        <div class="sale-channel-panel sale-channel-modal" data-sale-channel-panel hidden role="dialog" aria-modal="true" aria-label="Opened Sale Channels">
+                            <div class="sale-channel-modal-header">
+                                <div>
+                                    <div class="sale-channel-modal-kicker">ITEM MASTER</div>
+                                    <div class="sale-channel-modal-title">Opened Sale Channels</div>
+                                    <div class="sale-channel-modal-subtitle">Tick all sale channels currently opened for this item.</div>
+                                </div>
+                                <button type="button" class="sale-channel-modal-close" data-sale-channel-done aria-label="Close">×</button>
+                            </div>
+                            <div class="sale-channel-panel-toolbar">
+                                <input type="search" class="sale-channel-search" data-sale-channel-search placeholder="Search sale channel code, name or type...">
+                            </div>
+                            <div class="sale-channel-options" data-sale-channel-options></div>
+                            <div class="sale-channel-panel-buttons sale-channel-modal-footer">
+                                <button type="button" class="btn-small btn-secondary" data-sale-channel-select-shown>Select shown</button>
+                                <button type="button" class="btn-small btn-secondary" data-sale-channel-clear>Clear</button>
+                                <button type="button" class="btn-small" data-sale-channel-done>Done</button>
+                            </div>
+                        </div>
+                    </div>
+                {% elif field.type == 'asset_class_select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field_locked %}disabled{% endif %} {% if field.required %}required{% endif %}>
+                        <option value="">-- None --</option>
+                        {% for opt_value, opt_label in asset_class_options %}
+                            <option value="{{ opt_value }}" {% if value|string == opt_value|string %}selected{% endif %}>{{ opt_label }}</option>
+                        {% endfor %}
+                    </select>
+                {% elif field.type == 'textarea' %}
+                    <textarea id="{{ field.name }}" name="{{ field.name }}" placeholder="{{ field.placeholder }}" {% if field_locked %}readonly{% endif %}>{{ value or '' }}</textarea>
+                {% else %}
+                    <input id="{{ field.name }}"
+                           type="{{ 'text' if field.type == 'number' else 'email' if field.type == 'email' else 'date' if field.type == 'date' else 'text' }}"
+                           name="{{ field.name }}"
+                           value="{{ value|qty if field.type == 'number' and value is not none and value != '' else value if value is not none else '' }}"
+                           placeholder="{{ field.placeholder }}"
+                           {% if field.type == 'number' %}inputmode="decimal" data-erp-locale-number="1"{% endif %}
+                           {% if field.step %}step="{{ field.step }}"{% endif %}
+                           {% if field.required %}required{% endif %}
+                           {% if field_locked %}readonly{% endif %}>
+                {% endif %}
+                {% if master_numbering and field.name == master_numbering.code_field and not is_edit and not view_mode %}
+                        <button id="btn-generate-master-code" class="btn btn-secondary btn-generate" type="button">Generate</button>
+                    </div>
+                {% endif %}
+            </div>
+            {% if field.help_text %}<div class="help-text">{{ field.help_text }}</div>{% endif %}
+        {% endif %}
+    </div>
+{% endmacro %}
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Master Data</p>
+        <h1>{{ 'View' if view_mode else 'Edit' if is_edit else 'Create' }} {{ config.title }}</h1>
+        <p class="page-desc">{{ config.subtitle }}</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-secondary" href="/masters/{{ entity }}">← Back to list</a>
+    </div>
+</section>
+
+{% if errors %}
+<div class="alert alert-error">
+    <strong>Không thể lưu dữ liệu:</strong>
+    <ul class="error-list">
+        {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if not is_edit and master_numbering %}
+<div class="alert alert-info">
+    Nút <strong>Generate</strong> chỉ hiển thị mã dự kiến trên form và không tăng Next No. Next No chỉ tăng một lần khi bạn bấm Save và dữ liệu được lưu thành công.
+</div>
+{% endif %}
+
+<div class="card">
+    <form id="master-form" method="post" action="{{ '/masters/' ~ entity ~ '/' ~ row[config.pk] ~ '/save' if is_edit else '/masters/' ~ entity ~ '/save-new' }}" class="master-form" data-entity="{{ entity }}">
+        {% if config.form_tabs %}
+            <div class="form-tab-nav" role="tablist" aria-label="{{ config.title }} sections">
+                {% for tab in config.form_tabs %}
+                    <button type="button" class="form-tab-button {{ 'active' if loop.first else '' }}" data-tab-target="{{ tab.key }}">{{ tab.label }}</button>
+                {% endfor %}
+            </div>
+
+            {% for tab in config.form_tabs %}
+                <div class="form-tab-panel {{ 'active' if loop.first else '' }}" data-tab-panel="{{ tab.key }}">
+                    <div class="erp-form-grid">
+                        {% for field in config.fields %}
+                            {% if field.tab == tab.key %}
+                                {{ render_field(field) }}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% if entity == 'items' and tab.key == 'purchasing' %}
+                    <div class="item-uom-conversion-card">
+                        <div class="card-header compact-header">
+                            <div>
+                                <h3>Unit Conversion</h3>
+                                <div class="card-subtitle">Maintain quy đổi giữa Base Unit và Order Unit. Công thức: 1 Order Unit = Rate to Base × Base Unit.</div>
+                            </div>
+                        </div>
+                        <div class="item-uom-table-wrap">
+                            <table class="item-uom-table" id="item-uom-conversion-table">
+                                <thead>
+                                    <tr>
+                                        <th>Order Unit</th>
+                                        <th>Rate to Base</th>
+                                        <th>Base Unit</th>
+                                        <th>Active</th>
+                                        <th>Note</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="item-uom-conversion-body">
+                                    {% set conversion_rows = item_unit_conversions if item_unit_conversions else [] %}
+                                    {% for conv in conversion_rows %}
+                                    <tr>
+                                        <td>
+                                            <select name="conversion_order_uom" class="searchable-select conversion-order-uom" {% if view_mode %}disabled{% endif %}>
+                                                <option value="">-- Unit --</option>
+                                                {% for u in unit_options %}<option value="{{ u }}" {% if conv.order_uom|string == u|string %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                                                {% if conv.order_uom and conv.order_uom not in unit_options %}<option value="{{ conv.order_uom }}" selected>{{ conv.order_uom }}</option>{% endif %}
+                                            </select>
+                                        </td>
+                                        <td><input type="number" name="conversion_rate_to_base" step="0.000001" min="0.000001" value="{{ conv.conversion_rate_to_base or 1 }}" {% if view_mode %}readonly{% endif %}></td>
+                                        <td><input type="text" name="conversion_base_uom_display" value="{{ conv.base_uom or row.get('base_uom') or '' }}" readonly class="conversion-base-uom-display"></td>
+                                        <td>
+                                            <input type="hidden" name="conversion_active_marker" value="{{ loop.index0 }}">
+                                            <label class="inline-check"><input type="checkbox" name="conversion_active" value="{{ loop.index0 }}" {% if conv.is_active is not defined or conv.is_active %}checked{% endif %} {% if view_mode %}disabled{% endif %}><span>Yes</span></label>
+                                        </td>
+                                        <td><input type="text" name="conversion_note" value="{{ conv.note or '' }}" placeholder="VD: 1 thùng = 24 chai" {% if view_mode %}readonly{% endif %}></td>
+                                        <td>{% if not view_mode %}<button type="button" class="btn-small btn-secondary remove-conversion-row">Remove</button>{% endif %}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="item-uom-actions">
+                            {% if not view_mode %}<button type="button" class="btn-secondary btn-small" id="add-conversion-row">+ Add Conversion</button>{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="erp-form-grid">
+                {% for field in config.fields %}
+                    {{ render_field(field) }}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="form-actions">
+            {% if view_mode and is_edit %}
+                <a class="btn btn-primary" href="/masters/{{ entity }}/{{ row[config.pk] }}/edit">Edit</a>
+                <a class="btn btn-secondary" href="/masters/{{ entity }}">Back</a>
+            {% else %}
+                <button type="submit">💾 Save</button>
+                <a class="btn btn-secondary" href="/masters/{{ entity }}">Cancel</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    const form = document.getElementById('master-form');
+    const btn = document.getElementById('btn-generate-master-code');
+
+    document.querySelectorAll('.form-tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+            const target = button.dataset.tabTarget;
+            document.querySelectorAll('.form-tab-button').forEach(b => b.classList.toggle('active', b === button));
+            document.querySelectorAll('.form-tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.dataset.tabPanel === target);
+            });
+        });
+    });
+
+    if (form && form.dataset.entity === 'tax-codes') {
+        const taxType = form.querySelector('[name="tax_type"]');
+        const vatAccount = form.querySelector('[name="vat_account_id"]');
+        const defaultInputVatAccount = '{{ default_vat_accounts.input if default_vat_accounts else "" }}';
+        const defaultOutputVatAccount = '{{ default_vat_accounts.output if default_vat_accounts else "" }}';
+
+        function syncDefaultVatAccount(force) {
+            if (!taxType || !vatAccount) return;
+            const desired = taxType.value === 'OUTPUT' ? defaultOutputVatAccount : defaultInputVatAccount;
+            if (!desired) return;
+            const current = vatAccount.value || '';
+            const wasDefault = current === defaultInputVatAccount || current === defaultOutputVatAccount;
+            if (force || current === '' || wasDefault) {
+                vatAccount.value = desired;
+            }
+        }
+
+        if (taxType) {
+            taxType.addEventListener('change', () => syncDefaultVatAccount(false));
+            syncDefaultVatAccount(false);
+        }
+    }
+
+    if (form && form.dataset.entity === 'items') {
+        const itemType = form.querySelector('[name="item_type"]');
+        const canBeSold = form.querySelector('[name="can_be_sold"]');
+        const channelSelect = form.querySelector('[name="sale_channel_ids"]');
+        const deliveryDays = form.querySelector('[name="delivery_days"]');
+
+        function syncFinishedSalesFields(){
+            const isFinished = itemType && itemType.value === 'FINISHED';
+            if (canBeSold) {
+                canBeSold.disabled = !isFinished;
+                if (!isFinished) canBeSold.checked = false;
+            }
+            if (channelSelect) {
+                channelSelect.disabled = !isFinished || (canBeSold && !canBeSold.checked);
+                if (!isFinished) Array.from(channelSelect.options).forEach(o => o.selected = false);
+            }
+            if (deliveryDays) {
+                deliveryDays.disabled = !isFinished;
+                if (!isFinished) deliveryDays.value = '0';
+            }
+            if (channelSelect) {
+                channelSelect.dispatchEvent(new CustomEvent('sale-channel-picker:refresh', {bubbles:true}));
+            }
+        }
+        itemType?.addEventListener('change', syncFinishedSalesFields);
+        canBeSold?.addEventListener('change', syncFinishedSalesFields);
+        syncFinishedSalesFields();
+
+        function initSaleChannelPicker(select){
+            if (!select || select.dataset.saleChannelPickerReady === '1') return;
+            const picker = form.querySelector(`[data-sale-channel-picker-for="${select.id}"]`);
+            if (!picker) return;
+            select.dataset.saleChannelPickerReady = '1';
+
+            const toggle = picker.querySelector('[data-sale-channel-toggle]');
+            const panel = picker.querySelector('[data-sale-channel-panel]');
+            const backdrop = picker.querySelector('[data-sale-channel-backdrop]');
+            const search = picker.querySelector('[data-sale-channel-search]');
+            const optionsBox = picker.querySelector('[data-sale-channel-options]');
+            const chipsBox = picker.querySelector('[data-sale-channel-chips]');
+            const summary = picker.querySelector('[data-sale-channel-summary]');
+            const btnSelectShown = picker.querySelector('[data-sale-channel-select-shown]');
+            const btnClear = picker.querySelector('[data-sale-channel-clear]');
+            const btnDone = picker.querySelector('[data-sale-channel-done]');
+
+            function escapeHtml(value){
+                return String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+            }
+            function options(){ return Array.from(select.options || []); }
+            function selectedOptions(){ return options().filter(o => o.selected); }
+            function optionLabel(opt){ return (opt.textContent || '').replace(/\s+/g, ' ').trim(); }
+            function setDisabledState(){
+                picker.classList.toggle('is-disabled', !!select.disabled);
+                toggle.disabled = !!select.disabled;
+                search.disabled = !!select.disabled;
+                btnSelectShown.disabled = !!select.disabled;
+                btnClear.disabled = !!select.disabled;
+                btnDone.disabled = !!select.disabled;
+                if (select.disabled) closePanel();
+            }
+            function renderChips(){
+                const selected = selectedOptions();
+                chipsBox.innerHTML = '';
+                if (!selected.length) {
+                    summary.textContent = '-- Select Sale Channels --';
+                    if (chipsBox) chipsBox.innerHTML = '';
+                    return;
+                }
+                const firstLabel = optionLabel(selected[0]);
+                summary.textContent = selected.length === 1 ? firstLabel : `${firstLabel}  +${selected.length - 1} more`;
+                if (chipsBox) chipsBox.innerHTML = '';
+            }
+            function renderOptions(){
+                const q = (search.value || '').toLowerCase().trim();
+                const rows = options().filter(opt => !q || optionLabel(opt).toLowerCase().includes(q));
+                optionsBox.innerHTML = '';
+                if (!rows.length) {
+                    optionsBox.innerHTML = '<div class="sale-channel-no-result">No sale channel found.</div>';
+                    return;
+                }
+                rows.forEach(opt => {
+                    const row = document.createElement('label');
+                    row.className = 'sale-channel-option';
+                    row.innerHTML = `
+                        <input type="checkbox" value="${escapeHtml(opt.value)}" ${opt.selected ? 'checked' : ''}>
+                        <span>${escapeHtml(optionLabel(opt))}</span>
+                    `;
+                    const checkbox = row.querySelector('input');
+                    checkbox.addEventListener('change', () => {
+                        opt.selected = checkbox.checked;
+                        select.dispatchEvent(new Event('change', {bubbles:true}));
+                    });
+                    optionsBox.appendChild(row);
+                });
+            }
+            function refresh(){
+                setDisabledState();
+                renderChips();
+                renderOptions();
+            }
+            function openPanel(){
+                if (select.disabled) return;
+                panel.hidden = false;
+                if (backdrop) backdrop.hidden = false;
+                document.body.classList.add('sale-channel-modal-open');
+                search.value = '';
+                renderOptions();
+                setTimeout(() => search.focus({preventScroll:true}), 0);
+            }
+            function closePanel(){
+                panel.hidden = true;
+                if (backdrop) backdrop.hidden = true;
+                document.body.classList.remove('sale-channel-modal-open');
+            }
+            toggle.addEventListener('click', () => {
+                if (select.disabled) return;
+                if (panel.hidden) openPanel(); else closePanel();
+            });
+            search.addEventListener('input', renderOptions);
+            btnSelectShown.addEventListener('click', () => {
+                const q = (search.value || '').toLowerCase().trim();
+                options().forEach(opt => {
+                    if (!q || optionLabel(opt).toLowerCase().includes(q)) opt.selected = true;
+                });
+                select.dispatchEvent(new Event('change', {bubbles:true}));
+            });
+            btnClear.addEventListener('click', () => {
+                options().forEach(opt => opt.selected = false);
+                select.dispatchEvent(new Event('change', {bubbles:true}));
+            });
+            picker.querySelectorAll('[data-sale-channel-done]').forEach(btn => btn.addEventListener('click', closePanel));
+            backdrop?.addEventListener('click', closePanel);
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !panel.hidden) closePanel();
+            });
+            select.addEventListener('change', refresh);
+            select.addEventListener('sale-channel-picker:refresh', refresh);
+            refresh();
+        }
+
+        initSaleChannelPicker(channelSelect);
+        if (channelSelect) {
+            channelSelect.addEventListener('change', () => syncFinishedSalesFields());
+        }
+
+        const baseUomInput = form.querySelector('[name="base_uom"]');
+        const conversionBody = document.getElementById('item-uom-conversion-body');
+        const addConversionBtn = document.getElementById('add-conversion-row');
+        const unitOptions = {{ (unit_options or [])|tojson }};
+        function htmlEscape(value){
+            return String(value ?? '').replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; });
+        }
+        function conversionIndex(){ return conversionBody ? conversionBody.querySelectorAll('tr').length : 0; }
+        function unitSelectHtml(selected){
+            const opts = ['<option value="">-- Unit --</option>'].concat(unitOptions.map(u => `<option value="${htmlEscape(u)}" ${String(u)===String(selected||'')?'selected':''}>${htmlEscape(u)}</option>`));
+            if(selected && !unitOptions.includes(selected)) opts.push(`<option value="${htmlEscape(selected)}" selected>${htmlEscape(selected)}</option>`);
+            return `<select name="conversion_order_uom" class="searchable-select conversion-order-uom" {% if view_mode %}disabled{% endif %}>${opts.join('')}</select>`;
+        }
+        function syncConversionBaseUom(){
+            const base = baseUomInput ? baseUomInput.value.trim() : '';
+            document.querySelectorAll('.conversion-base-uom-display').forEach(input => input.value = base);
+        }
+        function addConversionRow(selectedUnit){
+            if(!conversionBody) return;
+            const idx = conversionIndex();
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${unitSelectHtml(selectedUnit || '')}</td>
+                <td><input type="number" name="conversion_rate_to_base" step="0.000001" min="0.000001" value="1"></td>
+                <td><input type="text" name="conversion_base_uom_display" value="${htmlEscape(baseUomInput ? baseUomInput.value : '')}" readonly class="conversion-base-uom-display"></td>
+                <td><input type="hidden" name="conversion_active_marker" value="${idx}"><label class="inline-check"><input type="checkbox" name="conversion_active" value="${idx}" checked><span>Yes</span></label></td>
+                <td><input type="text" name="conversion_note" placeholder="VD: 1 thùng = 24 chai"></td>
+                <td>{% if not view_mode %}<button type="button" class="btn-small btn-secondary remove-conversion-row">Remove</button>{% endif %}</td>`;
+            conversionBody.appendChild(tr);
+            if(window.initSearchableSelects) window.initSearchableSelects(tr);
+        }
+        addConversionBtn?.addEventListener('click', () => addConversionRow(''));
+        conversionBody?.addEventListener('click', function(e){
+            const btn = e.target.closest('.remove-conversion-row');
+            if(!btn) return;
+            const rowEl = btn.closest('tr');
+            if(rowEl) rowEl.remove();
+        });
+        baseUomInput?.addEventListener('input', syncConversionBaseUom);
+        baseUomInput?.addEventListener('change', syncConversionBaseUom);
+        syncConversionBaseUom();
+
+    }
+
+    if (!form || !btn) return;
+
+    btn.addEventListener('click', async function () {
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+        try {
+            const res = await fetch(`/masters/${form.dataset.entity}/generate-code`, {
+                method: 'POST',
+                body: new FormData(form)
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'Cannot generate code');
+
+            const codeInput = form.querySelector('input[name="{{ master_numbering.code_field if master_numbering else '' }}"]');
+            if (codeInput) {
+                codeInput.value = data.code;
+                codeInput.dataset.previewOnly = data.preview_only ? '1' : '0';
+            }
+        } catch (e) {
+            window.erpAlert(e.message || 'Không thể tự sinh mã. Vui lòng kiểm tra Document Numbering.', {title:'Notification', type:'warning'});
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    });
+})();
+</script>
+{% endblock %}

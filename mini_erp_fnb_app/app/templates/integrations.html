@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Integration</p>
+        <h1>Tích hợp POS / App bán hàng</h1>
+        <p class="page-desc">MVP hỗ trợ import CSV từ các app bán hàng no-cost/low-cost. Sau này có thể mở rộng connector API như Loyverse hoặc các hệ thống POS khác.</p>
+    </div>
+</section>
+
+<div class="card">
+    <div class="card-header"><div><h2>CSV POS Import Preview</h2><div class="card-subtitle">File cần có các cột: external_ref, sale_date, customer_code, channel_code, item_code, item_name, quantity, unit_price, tax_rate.</div></div></div>
+    <form method="post" action="/integrations/csv-preview" enctype="multipart/form-data" class="erp-form-grid compact-form-grid">
+        <div class="form-field"><label class="field-caption">CSV File</label><div class="field-control"><input type="file" name="file" accept=".csv" required></div></div>
+        <div class="form-field form-submit-field"><div class="field-caption">&nbsp;</div><div class="field-control"><button type="submit">Preview CSV</button></div></div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header"><div><h2>Connections</h2><div class="card-subtitle">Danh sách connector cấu hình trong hệ thống.</div></div></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Code</th><th>Name</th><th>Provider</th><th>Active</th></tr></thead>
+            <tbody>
+            {% for c in connections %}<tr><td><strong>{{ c.connection_code }}</strong></td><td>{{ c.connection_name }}</td><td><span class="badge">{{ c.provider }}</span></td><td><span class="badge badge-{{ 'active' if c.is_active else 'inactive' }}">{{ 'Yes' if c.is_active else 'No' }}</span></td></tr>{% else %}<tr><td colspan="4" class="empty-state">Chưa có connection.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><div><h2>Sync Logs</h2><div class="card-subtitle">Lịch sử import/sync dữ liệu bán hàng.</div></div></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Type</th><th>Started</th><th>Finished</th><th>Status</th><th>Message</th><th class="num">Records</th></tr></thead>
+            <tbody>
+            {% for l in logs %}<tr><td>{{ l.sync_type }}</td><td>{{ l.started_at }}</td><td>{{ l.finished_at }}</td><td><span class="badge badge-{{ l.status|lower }}">{{ l.status }}</span></td><td>{{ l.message }}</td><td class="num">{{ l.records_processed }}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">Chưa có sync log.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

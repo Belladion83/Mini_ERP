@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Master Data</p>
+        <h1>Master Data Maintenance</h1>
+        <p class="page-desc">
+            Tạo mới, chỉnh sửa và vô hiệu hóa dữ liệu nền tảng trước khi chạy các quy trình mua hàng, bán hàng,
+            tồn kho, sản xuất và kế toán. Dữ liệu đã phát sinh chứng từ nên được chuyển sang Inactive thay vì xóa cứng.
+        </p>
+    </div>
+</section>
+
+<div class="module-grid master-grid">
+    {% for entity, cfg in entities.items() %}
+    <a class="module-card" href="/masters/{{ entity }}">
+        <div class="module-icon">{{ cfg.icon }}</div>
+        <h3>{{ cfg.title }}</h3>
+        <p>{{ cfg.subtitle }}</p>
+        <div class="master-card-footer">
+            <span class="badge badge-active">Active: {{ counts[entity].active }}</span>
+            <span class="badge">Total: {{ counts[entity].total }}</span>
+        </div>
+    </a>
+    {% endfor %}
+
+    <div class="card master-guide-card">
+        <div class="card-header">
+            <div>
+                <h2>Gợi ý thứ tự maintain Master Data</h2>
+                <div class="card-subtitle">Nên tạo dữ liệu nền theo thứ tự này để các dropdown và posting hoạt động đúng.</div>
+            </div>
+        </div>
+        <div class="workflow-strip">
+            <span class="step-pill">1. Chart of Accounts Structure</span><span class="step-arrow">→</span>
+            <span class="step-pill">2. G/L Master Data</span><span class="step-arrow">→</span>
+            <span class="step-pill">3. Tax Codes</span><span class="step-arrow">→</span>
+            <span class="step-pill">4. Warehouses</span><span class="step-arrow">→</span>
+            <span class="step-pill">5. Unit of Measure</span><span class="step-arrow">→</span>
+            <span class="step-pill">6. Business Partners</span><span class="step-arrow">→</span>
+            <span class="step-pill">7. Sale Channels</span><span class="step-arrow">→</span>
+            <span class="step-pill">8. Items</span><span class="step-arrow">→</span>
+            <span class="step-pill">9. BOM / Recipe</span><span class="step-arrow">→</span>
+            <span class="step-pill">10. Asset Classes</span><span class="step-arrow">→</span>
+            <span class="step-pill">11. Fixed Assets / Tools</span><span class="step-arrow">→</span>
+            <span class="step-pill">12. Document Numbering</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

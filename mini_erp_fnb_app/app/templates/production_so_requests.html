@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Production · From SO</p>
+        <h1>Create Production Order from Sales Order</h1>
+        <p class="page-desc">Xử lý các yêu cầu sản xuất được tạo từ Sales Order khi Check Availability không đủ hàng. Issue WH và Receipt WH vẫn là thông tin riêng của từng line request, chỉ đưa caption lên header table để không bị lặp trong từng dòng.</p>
+        <div class="workflow-strip"><span class="step-pill">SO Shortage</span><span class="step-arrow">→</span><span class="step-pill">Production Request</span><span class="step-arrow">→</span><span class="step-pill">Select WH per Line</span><span class="step-arrow">→</span><span class="step-pill">Create Prod</span></div>
+    </div>
+    <div class="page-actions">
+        <a class="btn-secondary dirty-link" href="/production">Production Menu</a>
+        <a class="btn-secondary dirty-link" href="/production/manual">Manual</a>
+    </div>
+</section>
+
+<div class="card production-card">
+    <div class="card-header">
+        <div>
+            <h2>Sales Production Requests</h2>
+            <div class="card-subtitle">Sales Request WH là kho khách/sales cần hàng. Issue WH và Receipt WH là thông tin chọn riêng cho từng Production Request line.</div>
+        </div>
+        <span class="badge badge-running">From SO</span>
+    </div>
+    <div class="production-legend">
+        <span><strong>Sales Request WH</strong>: kho cần đáp ứng cho Sales Order</span>
+        <span><strong>Issue WH</strong>: cột trên table, chọn kho xuất nguyên vật liệu/component cho từng request</span>
+        <span><strong>Receipt WH</strong>: cột trên table, chọn kho nhận thành phẩm cho từng request</span>
+    </div>
+    <div class="table-wrap production-request-table-wrap">
+        <table data-erp-table="true" data-erp-table-title="Sales Production Requests">
+            <thead>
+                <tr>
+                    <th>Request</th>
+                    <th>Date</th>
+                    <th>Item</th>
+                    <th>Sales Request WH</th>
+                    <th class="num">Qty</th>
+                    <th>Channel</th>
+                    <th>Requested By</th>
+                    <th>Status</th>
+                    <th>Issue WH</th>
+                    <th>Receipt WH</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in requests %}
+            <tr>
+                <td><strong>#{{ r.id }}</strong></td>
+                <td>{{ r.request_date }}</td>
+                <td>{{ r.item_code }} - {{ r.item_name }}</td>
+                <td><span class="warehouse-chip" title="{{ r.sales_request_warehouse_name or r.warehouse_code }}">{{ r.warehouse_code }}</span></td>
+                <td class="num">{{ r.requested_qty|qty }}</td>
+                <td><span class="badge">{{ r.channel_code or '-' }}</span></td>
+                <td>{{ r.requested_by_username or '-' }}</td>
+                <td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td>
+                <td class="production-request-wh-cell">
+                    <select form="sales-prod-request-form-{{ r.id }}" name="issue_warehouse_id" class="compact-select production-request-wh-select" title="Kho xuất component/nguyên vật liệu">
+                        {% for w in warehouses %}<option value="{{ w.id }}" {% if w.warehouse_code == r.warehouse_code %}selected{% endif %}>{{ w.warehouse_code }}</option>{% endfor %}
+                    </select>
+                </td>
+                <td class="production-request-wh-cell">
+                    <select form="sales-prod-request-form-{{ r.id }}" name="receipt_warehouse_id" class="compact-select production-request-wh-select" title="Kho nhận thành phẩm">
+                        {% for w in warehouses %}<option value="{{ w.id }}" {% if w.warehouse_code == r.warehouse_code %}selected{% endif %}>{{ w.warehouse_code }}</option>{% endfor %}
+                    </select>
+                </td>
+                <td class="production-request-action-cell">
+                    <form id="sales-prod-request-form-{{ r.id }}" method="post" action="/production/create-from-request" class="row-actions production-request-actions">
+                        <input type="hidden" name="request_id" value="{{ r.id }}">
+                        <button type="submit" class="btn-primary btn-small">Create Prod</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}<tr><td colspan="11" class="empty-state">Chưa có yêu cầu sản xuất từ Sales.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card production-card">
+    <div class="card-header"><div><h2>Recent Production Orders</h2><div class="card-subtitle">20 lệnh sản xuất gần nhất. Bảng hiển thị rõ kho xuất nguyên vật liệu và kho nhận thành phẩm.</div></div></div>
+    <div class="table-wrap">
+        <table data-erp-table="true" data-erp-table-title="Production Orders">
+            <thead><tr><th>No</th><th>Date</th><th>Item</th><th class="num">Planned</th><th class="num">Completed</th><th>Issue WH</th><th>Receipt WH</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for r in orders %}<tr><td><strong>{{ r.prod_no }}</strong></td><td>{{ r.prod_date }}</td><td>{{ r.item_code }} - {{ r.item_name }}</td><td class="num">{{ r.planned_qty|qty }}</td><td class="num">{{ r.completed_qty|qty }}</td><td>{{ r.issue_warehouse_code or '-' }}</td><td>{{ r.receipt_warehouse_code or '-' }}</td><td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td></tr>{% else %}<tr><td colspan="8" class="empty-state">Chưa có Production Order.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

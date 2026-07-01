@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+{% set is_edit = row.id is not none %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Security</p>
+        <h1>{{ 'Edit User' if is_edit else 'Create User' }}</h1>
+        <p class="page-desc">Maintain user login, active status, password và group phân quyền.</p>
+    </div>
+    <div class="page-actions"><a class="btn btn-secondary" href="/admin/users">← Back to users</a></div>
+</section>
+
+{% if errors %}<div class="alert alert-error"><strong>Không thể lưu:</strong><ul class="error-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+<div class="card">
+    <form method="post" action="{{ '/admin/users/' ~ row.id ~ '/save' if is_edit else '/admin/users/save-new' }}" class="master-form">
+        <div class="erp-form-grid">
+            <div class="form-field"><label class="field-caption">Username <span class="required">*</span></label><div class="field-control"><input type="text" name="username" value="{{ row.username or '' }}" {% if is_edit %}readonly{% endif %} required></div>{% if is_edit %}<div class="help-text">Username không nên đổi sau khi đã phát sinh audit/log.</div>{% endif %}</div>
+            <div class="form-field"><label class="field-caption">Full Name</label><div class="field-control"><input type="text" name="full_name" value="{{ row.full_name or '' }}"></div></div>
+            <div class="form-field"><label class="field-caption">Email</label><div class="field-control"><input type="email" name="email" value="{{ row.email or '' }}"></div></div>
+            <div class="form-field"><label class="field-caption">{{ 'New Password' if is_edit else 'Password' }} {{ '' if is_edit else '*' }}</label><div class="field-control"><input type="password" name="new_password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="72" placeholder="{{ 'Để trống nếu không đổi password' if is_edit else 'Enter password' }}" {% if not is_edit %}required{% endif %}></div>{% if is_edit %}<div class="help-text">Chỉ nhập khi muốn đổi password. Đổi email/thông tin user thì để trống.</div>{% endif %}</div>
+            <div class="form-field checkbox-field"><div class="field-caption">Active</div><label class="switch-row field-control"><input type="checkbox" name="is_active" {% if row.is_active %}checked{% endif %}><span class="muted">Enabled</span></label></div>
+            {% if is_edit %}
+            <div class="form-field checkbox-field"><div class="field-caption">Account Lock</div><label class="switch-row field-control"><input type="checkbox" name="is_locked" {% if row.is_locked %}checked{% endif %}><span class="muted">Locked</span></label><div class="help-text">Bỏ tick và Save để unlock user. Khi unlock, số lần sai password sẽ reset về 0.</div></div>
+            <div class="form-field"><label class="field-caption">Failed Attempts</label><div class="field-control"><input type="text" value="{{ row.failed_login_count or 0 }}/5" readonly></div><div class="help-text">Hệ thống tự tăng khi login sai password.</div></div>
+            {% endif %}
+        </div>
+
+        <div class="permission-panel">
+            <h3>Assign Groups</h3>
+            <p class="muted">User sẽ có quyền từ tất cả group được chọn.</p>
+            <div class="permission-grid">
+                {% for g in groups %}
+                <label class="permission-check">
+                    <input type="checkbox" name="group_ids" value="{{ g.id }}" {% if g.id in selected_group_ids %}checked{% endif %}>
+                    <span><strong>{{ g.group_code }}</strong><small>{{ g.group_name }}</small></span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-actions"><button type="submit">💾 Save</button><a class="btn btn-secondary" href="/admin/users">Cancel</a></div>
+    </form>
+</div>
+{% endblock %}

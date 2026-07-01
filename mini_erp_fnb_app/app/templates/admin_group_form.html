@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Security</p>
+        <h1>Edit Group: {{ row.group_code }}</h1>
+        <p class="page-desc">Chọn permission cho group. Tất cả user thuộc group sẽ được quyền tương ứng.</p>
+    </div>
+    <div class="page-actions"><a class="btn btn-secondary" href="/admin/groups">← Back to groups</a></div>
+</section>
+
+{% if errors %}<div class="alert alert-error"><strong>Không thể lưu:</strong><ul class="error-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+<div class="card">
+    <form method="post" action="/admin/groups/{{ row.id }}/save" class="master-form">
+        <div class="erp-form-grid">
+            <div class="form-field"><label class="field-caption">Group Code</label><div class="field-control"><input type="text" value="{{ row.group_code }}" readonly></div></div>
+            <div class="form-field"><label class="field-caption">Group Name <span class="required">*</span></label><div class="field-control"><input type="text" name="group_name" value="{{ row.group_name or '' }}" required></div></div>
+            <div class="form-field checkbox-field"><div class="field-caption">Active</div><label class="switch-row field-control"><input type="checkbox" name="is_active" {% if row.is_active %}checked{% endif %}><span class="muted">Enabled</span></label></div>
+            <div class="form-field full-span"><label class="field-caption">Description</label><div class="field-control field-control-textarea"><textarea name="description">{{ row.description or '' }}</textarea></div></div>
+        </div>
+
+        <div class="permission-panel">
+            <h3>Permissions</h3>
+            <p class="muted">Tick các quyền cần cấp cho group này.</p>
+            <div class="permission-grid permission-grid-wide">
+                {% for p in permissions %}
+                    <label class="permission-check">
+                        <input type="checkbox" name="permission_ids" value="{{ p.id }}" {% if p.id in selected_permission_ids %}checked{% endif %}>
+                        <span><strong>{{ p.permission_code }}</strong><small>{{ p.module_code }} · {{ p.permission_name }}</small></span>
+                    </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-actions"><button type="submit">💾 Save Permissions</button><a class="btn btn-secondary" href="/admin/groups">Cancel</a></div>
+    </form>
+</div>
+{% endblock %}
