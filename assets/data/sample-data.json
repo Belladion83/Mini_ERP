@@ -1,0 +1,25 @@
+{
+  "version": "0.01",
+  "note": "Reference sample data for the static Mini_ERP F&B GitHub Pages demo. Runtime data is seeded inside assets/js/app.js and persisted in browser localStorage.",
+  "demoUsers": [
+    { "email": "admin@mini.erp", "password": "admin123", "role": "ADMIN" },
+    { "email": "buyer@mini.erp", "password": "buyer123", "role": "PURCHASING" }
+  ],
+  "modules": [
+    "Dashboard",
+    "Master Data",
+    "Purchase Requisition",
+    "Purchase Order",
+    "Goods Receipt",
+    "Sales Order",
+    "Production",
+    "Reports"
+  ],
+  "importantRules": [
+    "Clickable master data codes and document numbers open View mode first.",
+    "Edit mode only unlocks allowed fields; document numbers, codes and posted/released documents remain locked.",
+    "Purchase Requisition uses PO_CREATED status to prevent duplicate PO creation.",
+    "Goods Receipt updates stock in base unit.",
+    "This static version has no backend, no SQL Server and no real multi-user persistence."
+  ]
+}
