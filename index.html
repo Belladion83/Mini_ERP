@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini_ERP F&B Web Demo</title>
+  <meta name="description" content="Static GitHub Pages demo for Mini_ERP F&B purchasing, sales, production and master data flows." />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <section id="loginScreen" class="login-screen">
+      <div class="login-card">
+        <div class="brand-mark">ERP</div>
+        <h1>Mini_ERP F&amp;B</h1>
+        <p class="muted">GitHub Pages static demo · lưu dữ liệu bằng localStorage</p>
+        <form id="loginForm" class="form-grid single">
+          <label>Email
+            <input id="loginEmail" type="email" value="admin@mini.erp" autocomplete="username" required />
+          </label>
+          <label>Password
+            <input id="loginPassword" type="password" value="admin123" autocomplete="current-password" required />
+          </label>
+          <button class="primary" type="submit">Login</button>
+          <p id="loginMessage" class="form-message"></p>
+        </form>
+        <div class="demo-users">
+          <strong>Demo users</strong>
+          <span>Admin: admin@mini.erp / admin123</span>
+          <span>Buyer: buyer@mini.erp / buyer123</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="mainScreen" class="main-screen hidden">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <div class="brand-mark small">ERP</div>
+          <div>
+            <strong>Mini_ERP F&amp;B</strong>
+            <span id="activeUser" class="muted"></span>
+          </div>
+        </div>
+        <nav id="menu" class="menu"></nav>
+        <div class="sidebar-footer">
+          <button id="resetDataBtn" class="ghost">Reset demo data</button>
+          <button id="logoutBtn" class="ghost">Logout</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Static Web Demo</p>
+            <h2 id="pageTitle">Dashboard</h2>
+          </div>
+          <div class="topbar-actions">
+            <span class="badge">GitHub Pages Ready</span>
+            <span class="badge soft">No backend</span>
+          </div>
+        </header>
+        <section id="view" class="view"></section>
+      </main>
+    </section>
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow" id="modalMode">View mode</p>
+          <h3 id="modalTitle">Record</h3>
+        </div>
+        <button id="modalClose" class="icon-btn" aria-label="Close">×</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+      <div class="modal-actions">
+        <button id="modalEdit" class="secondary">Edit</button>
+        <button id="modalSave" class="primary hidden">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state">
+      <strong>Không có dữ liệu</strong>
+      <span>Hãy tạo chứng từ hoặc reset demo data.</span>
+    </div>
+  </template>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
