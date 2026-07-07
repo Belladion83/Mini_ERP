@@ -44,3 +44,5 @@ If the site is not live yet, open repository Settings, go to Pages, set Source t
 ### Static demo limitation
 
 This version does not include FastAPI, SQL Server, SMTP, server-side auth, or real multi-user persistence. It is designed as a free web demo/prototype for business flow review and UI testing.
+
+Pages rebuild trigger.
